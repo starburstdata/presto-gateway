@@ -1,12 +1,11 @@
 package com.lyft.data.gateway.ha.router;
 
 import java.io.FileReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
+//import java.nio.file.Files;
+//import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.FileTime;
+//import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
-import java.util.Optional;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -29,13 +28,13 @@ public class RuleCachingRoutingGroupSelector
   RulesEngine rulesEngine = new DefaultRulesEngine();
   MVELRuleFactory ruleFactory = new MVELRuleFactory(new YamlRuleDefinitionReader());
   Rules rules;
-  FileTime lastUpdatedTime;
+  //FileTime lastUpdatedTime;
 
   RuleCachingRoutingGroupSelector(String rulesConfigPath) {
     try {
-      BasicFileAttributes attr = Files.readAttributes(Path.of(rulesConfigPath),
-              BasicFileAttributes.class);
-      lastUpdatedTime = attr.lastModifiedTime();
+      //BasicFileAttributes attr = Files.readAttributes(Path.of(rulesConfigPath),
+      //        BasicFileAttributes.class);
+      //lastUpdatedTime = attr.lastModifiedTime();
       rules = ruleFactory.createRules(
               new FileReader(rulesConfigPath));
     } catch (Exception e) {
