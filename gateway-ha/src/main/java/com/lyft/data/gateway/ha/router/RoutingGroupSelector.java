@@ -1,16 +1,7 @@
 package com.lyft.data.gateway.ha.router;
 
-import java.io.FileReader;
-import java.util.HashMap;
 import java.util.Optional;
 import javax.servlet.http.HttpServletRequest;
-import lombok.extern.slf4j.Slf4j;
-import org.jeasy.rules.api.Facts;
-import org.jeasy.rules.api.Rules;
-import org.jeasy.rules.api.RulesEngine;
-import org.jeasy.rules.core.DefaultRulesEngine;
-import org.jeasy.rules.mvel.MVELRuleFactory;
-import org.jeasy.rules.support.reader.YamlRuleDefinitionReader;
 
 /** RoutingGroupSelector provides a way to match an HTTP request to a Gateway routing group. */
 public interface RoutingGroupSelector {
@@ -31,7 +22,7 @@ public interface RoutingGroupSelector {
    * to determine the right routing group.
    */
   static RoutingGroupSelector byRoutingRulesEngine(String rulesConfigPath) {
-    return new RuleCachingRoutingGroupSelector(rulesConfigPath);
+    return new RuleReloadingRoutingGroupSelector(rulesConfigPath);
   }
 
   /**
