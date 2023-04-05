@@ -1,6 +1,10 @@
 package com.lyft.data.gateway.ha.router;
 
 import java.io.FileReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
 import java.util.Optional;
 
@@ -24,28 +28,29 @@ public class RuleCachingRoutingGroupSelector
 
   RulesEngine rulesEngine = new DefaultRulesEngine();
   MVELRuleFactory ruleFactory = new MVELRuleFactory(new YamlRuleDefinitionReader());
-  String rulesConfigPath;
+  Rules rules;
+  FileTime lastUpdatedTime;
 
   RuleCachingRoutingGroupSelector(String rulesConfigPath) {
-    this.rulesConfigPath = rulesConfigPath;
+    try {
+      BasicFileAttributes attr = Files.readAttributes(Path.of(rulesConfigPath),
+              BasicFileAttributes.class);
+      lastUpdatedTime = attr.lastModifiedTime();
+      rules = ruleFactory.createRules(
+              new FileReader(rulesConfigPath));
+    } catch (Exception e) {
+      log.error("Error opening rules configuration file, using "
+              + "routing group header as default.", e);
+    }
   }
 
   @Override
   public String findRoutingGroup(HttpServletRequest request) {
-    try {
-      Rules rules = ruleFactory.createRules(
-          new FileReader(rulesConfigPath));
-      Facts facts = new Facts();
-      HashMap<String, String> result = new HashMap<String, String>();
-      facts.put("request", request);
-      facts.put("result", result);
-      rulesEngine.fire(rules, facts);
-      return result.get("routingGroup");
-    } catch (Exception e) {
-      log.error("Error opening rules configuration file, using "
-            + "routing group header as default.", e);
-      return Optional.ofNullable(request.getHeader(ROUTING_GROUP_HEADER))
-          .orElse(request.getHeader(ALTERNATE_ROUTING_GROUP_HEADER));
-    }
+    Facts facts = new Facts();
+    HashMap<String, String> result = new HashMap<String, String>();
+    facts.put("request", request);
+    facts.put("result", result);
+    rulesEngine.fire(rules, facts);
+    return result.get("routingGroup");
   }
 }
