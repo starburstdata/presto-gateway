@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 public abstract class RoutingManager {
   private static final Random RANDOM = new Random();
   private final LoadingCache<String, String> queryIdBackendCache;
+  private final LoadingCache<String, String> uiCookieBackendCache;
   private ExecutorService executorService = Executors.newFixedThreadPool(5);
   private GatewayBackendManager gatewayBackendManager;
 
@@ -44,6 +45,17 @@ public abstract class RoutingManager {
                     return findBackendForUnknownQueryId(queryId);
                   }
                 });
+    uiCookieBackendCache =
+        CacheBuilder.newBuilder()
+            .maximumSize(10000)
+            .expireAfterAccess(30, TimeUnit.MINUTES)
+            .build(
+                new CacheLoader<String, String>() {
+                @Override
+                  public String load(String queryId) {
+                    return findBackendForUnknownQueryId(queryId);
+                  }
+                });
   }
 
   protected GatewayBackendManager getGatewayBackendManager() {
@@ -52,6 +64,10 @@ public abstract class RoutingManager {
 
   public void setBackendForQueryId(String queryId, String backend) {
     queryIdBackendCache.put(queryId, backend);
+  }
+
+  public void setBackendForUiCookie(String uiCookie, String backend) {
+    uiCookieBackendCache.put(uiCookie, backend);
   }
 
   /**
@@ -103,6 +119,16 @@ public abstract class RoutingManager {
     return backendAddress;
   }
 
+  public String findBackendForUiCookie(String uiCookie) {
+    try {
+      return uiCookieBackendCache.get(uiCookie);
+    } catch (ExecutionException e) {
+      log.error("Exception while loading UI Cookie backend from cache {}", e.getLocalizedMessage());
+    }
+    //TODO: consider using optionals for all of the places where nulls or defaults are returned
+    return null;
+  }
+
   /**
    * This tries to find out which backend may have info about given query id. If not found returns
    * the first healthy backend.
@@ -146,4 +172,47 @@ public abstract class RoutingManager {
     // Fallback on first active backend if queryId mapping not found.
     return gatewayBackendManager.getActiveAdhocBackends().get(0).getProxyTo();
   }
+
+  protected String findBackendForUnknownUiCookie(String uiCookie) {
+    //TODO: make a lookup table in the DB. This doesn't seem reliable or correct
+    List<ProxyBackendConfiguration> backends = gatewayBackendManager.getAllBackends();
+
+    Map<String, Future<Integer>> responseCodes = new HashMap<>();
+    try {
+      for (ProxyServerConfiguration backend : backends) {
+        String target = backend.getProxyTo() + "/ui/api/insights/login/test";
+
+        Future<Integer> call =
+            executorService.submit(
+                () -> {
+                    URL url = new URL(target);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(5));
+                    conn.setReadTimeout((int) TimeUnit.SECONDS.toMillis(5));
+                    conn.setRequestMethod(HttpMethod.HEAD);
+                    conn.setRequestProperty("Trino-UI-Token", uiCookie);
+                    //TODO: import the header name from trino
+                    return conn.getResponseCode();
+                });
+        responseCodes.put(backend.getProxyTo(), call);
+      }
+      for (Map.Entry<String, Future<Integer>> entry : responseCodes.entrySet()) {
+        if (entry.getValue().isDone()) {
+          int responseCode = entry.getValue().get();
+          if (responseCode == 200) {
+            log.info("Found UI Cookie [{}] on backend [{}]", uiCookie, entry.getKey());
+            setBackendForQueryId(uiCookie, entry.getKey());
+            return entry.getKey();
+          }
+        }
+      }
+    } catch (Exception e) {
+      log.warn("Query id [{}] not found", uiCookie);
+    }
+    // Fallback on first active backend if queryId mapping not found.
+    return gatewayBackendManager.getActiveAdhocBackends().get(0).getProxyTo();
+  }
+
+
+
 }
