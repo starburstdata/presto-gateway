@@ -13,7 +13,9 @@ import com.lyft.data.proxyserver.wrapper.MultiReadHttpServletRequest;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -59,6 +61,8 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
   private final Meter requestMeter;
   private final int serverApplicationPort;
 
+  private final Map<String, String> sessionBackendMap = new HashMap<>();
+
   public QueryIdCachingProxyHandler(
       QueryHistoryManager queryHistoryManager,
       RoutingManager routingManager,
@@ -92,7 +96,6 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     if (isPathWhiteListed(request.getRequestURI())) {
       setForwardedHostHeaderOnProxyRequest(request, proxyRequest);
     }
-
   }
 
   private boolean isPathWhiteListed(String path) {
@@ -148,7 +151,13 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
                     + request.getServerPort()
                     + request.getRequestURI()
                     + (request.getQueryString() != null ? "?" + request.getQueryString() : "");
-
+    if (doRecordQueryId(request) || (request.getRequestURI().startsWith(PRESTO_UI_PATH)
+            && !Arrays.stream(request.getCookies()).anyMatch(
+              cookie -> cookie.getName().equals("Trino-UI-Token")
+              || cookie.getName().equals("__Secure-Trino-OAuth2-Token")))) {
+      sessionBackendMap.put(request.getSession().getId(), backendAddress);
+      log.debug("Session id: " + request.getSession().getId());
+    }
     log.info("Rerouting [{}]--> [{}]", originalLocation, targetLocation);
     return targetLocation;
   }
@@ -239,6 +248,13 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     return queryId;
   }
 
+  private boolean doRecordQueryId(HttpServletRequest request) {
+    String requestPath = request.getRequestURI();
+    return (requestPath.startsWith(V1_STATEMENT_PATH)
+            || requestPath.startsWith(INSIGHTS_STATEMENT_PATH))
+            && request.getMethod().equals(HttpMethod.POST);
+  }
+
   protected void postConnectionHook(
       HttpServletRequest request,
       HttpServletResponse response,
@@ -247,40 +263,40 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       int length,
       Callback callback) {
     try {
-      String requestPath = request.getRequestURI();
-      if ((requestPath.startsWith(V1_STATEMENT_PATH)
-              || requestPath.startsWith(INSIGHTS_STATEMENT_PATH))
-          && request.getMethod().equals(HttpMethod.POST)) {
+      if (doRecordQueryId(request)) {
         recordBackendForQueryId(request, response, buffer);
-      } else if (requestPath.startsWith(PRESTO_UI_PATH)) {
+      } else if (request.getRequestURI().startsWith(PRESTO_UI_PATH)
+              && response.containsHeader("Set-Cookie")) {
         // check if request contained ui token or not
-        if (response.containsHeader("Set-Cookie")) {
-          String setCookie = response.getHeader("Set-Cookie");
-          log.info("Response has Set-Cookie: " + setCookie);
-          if (setCookie.indexOf("Trino-UI-Token") > -1
-                  || setCookie.indexOf("__Secure-Trino-OAuth2-Token") > -1) {
-            String[] cookies = setCookie.split(";");
-            for (String cookie : cookies) {
-              if (cookie.equals("Trino-UI-Token") || cookie.equals("__Secure-Trino-OAuth2-Token")) {
-                log.info("UI token found");
-                QueryHistoryManager.QueryDetail queryDetail = getQueryDetailsFromRequest(request);
-                String token = cookie.split("=")[1];
-                if (Strings.isNullOrEmpty(token)) {
-                  log.warn(
-                      String.format(
-                          "Set-Cookie UI token contains unexpected data: {}. Backend not set.",
-                          cookie));
-                } else {
-                  routingManager.setBackendForUiCookie(token, queryDetail.getBackendUrl());
-                }
+        String setCookie = response.getHeader("Set-Cookie");
+        log.info("Response has Set-Cookie: " + setCookie);
+        if (setCookie.indexOf("Trino-UI-Token") > -1
+                || setCookie.indexOf("__Secure-Trino-OAuth2-Token") > -1) {
+          String[] cookies = setCookie.split(";");
+          for (String cookie : cookies) {
+            if (cookie.equals("Trino-UI-Token") || cookie.equals("__Secure-Trino-OAuth2-Token")) {
+              log.info("UI token found");
+              QueryHistoryManager.QueryDetail queryDetail = getQueryDetailsFromRequest(request);
+              String backendUrl = Strings.isNullOrEmpty(queryDetail.getBackendUrl())
+                      ? sessionBackendMap.get(request.getSession().getId()) :
+                      queryDetail.getBackendUrl();
+              String token = cookie.split("=")[1];
+              if (Strings.isNullOrEmpty(token)) {
+                log.warn(
+                    String.format(
+                        "Set-Cookie UI token contains unexpected data: {}. Backend not set.",
+                        cookie));
+              } else {
+                routingManager.setBackendForUiCookie(token, backendUrl);
+                sessionBackendMap.remove(request.getSession().getId());
               }
             }
-          } else {
-            log.info("No UI token found in Set Cookie");
           }
+        } else {
+          log.info("No UI token found in Set Cookie");
         }
       } else {
-        log.debug("SKIPPING For {}", requestPath);
+        log.debug("SKIPPING For {}", request.getRequestURI());
       }
     } catch (Exception e) {
       log.error("Error in proxying falling back to super call", e);
@@ -301,14 +317,13 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       output = new String(buffer);
     }
     log.debug("For Request [{}] got Response output [{}]", request.getRequestURI(), output);
-    log.debug("remote host: " + request.getRemoteHost());
-    log.debug("local addr: " + request.getLocalAddr());
-    log.debug("request url: " + request.getRequestURL());
-    log.debug("Server name: " + request.getServerName());
+    log.debug("Session Id: " + request.getSession().getId());
 
     QueryHistoryManager.QueryDetail queryDetail = getQueryDetailsFromRequest(request);
+    String backendUrl = Strings.isNullOrEmpty(queryDetail.getBackendUrl())
+            ? sessionBackendMap.get(request.getSession().getId()) : queryDetail.getBackendUrl();
     log.debug("Extracting Proxy destination : [{}] for request : [{}]",
-            queryDetail.getBackendUrl(), request.getRequestURI());
+            backendUrl, request.getRequestURI());
 
     if (response.getStatus() == HttpStatus.OK_200) {
       HashMap<String, String> results = OBJECT_MAPPER.readValue(output, HashMap.class);
@@ -316,11 +331,12 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
 
       if (!Strings.isNullOrEmpty(queryDetail.getQueryId())) {
         routingManager.setBackendForQueryId(
-                queryDetail.getQueryId(), queryDetail.getBackendUrl());
+                queryDetail.getQueryId(), backendUrl);
         log.debug(
                 "QueryId [{}] mapped with proxy [{}]",
                 queryDetail.getQueryId(),
-                queryDetail.getBackendUrl());
+                backendUrl);
+        sessionBackendMap.remove(request.getSession().getId());
       } else {
         log.debug("QueryId [{}] could not be cached", queryDetail.getQueryId());
       }
