@@ -152,7 +152,8 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
                     + request.getRequestURI()
                     + (request.getQueryString() != null ? "?" + request.getQueryString() : "");
     if (doRecordQueryId(request) || (request.getRequestURI().startsWith(PRESTO_UI_PATH)
-            && request.getCookies().length > 0 && !Arrays.stream(request.getCookies()).anyMatch(
+            && request.getCookies() != null
+            && !Arrays.stream(request.getCookies()).anyMatch(
               cookie -> cookie.getName().equals("Trino-UI-Token")
               || cookie.getName().equals("__Secure-Trino-OAuth2-Token")))) {
       sessionBackendMap.put(request.getSession().getId(), backendAddress);
