@@ -254,7 +254,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
         if (response.containsHeader("Set-Cookie")) {
           String setCookie = response.getHeader("Set-Cookie");
           log.info("Response has Set-Cookie: " + setCookie);
-          if (setCookie.indexOf("Trino-UI-Token") > 0) {
+          if (setCookie.indexOf("Trino-UI-Token") > -1) {
             String[] cookies = setCookie.split(";");
             for (String cookie : cookies) {
               if (cookie.indexOf("Trino-UI-Token") > 0) {
