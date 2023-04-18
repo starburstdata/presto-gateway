@@ -46,8 +46,8 @@ public class PrestoQueueLengthRoutingTable extends HaRoutingManager {
    * Presto cluster queue length and falls back to Running Count if queue length are equal.
    */
   public PrestoQueueLengthRoutingTable(GatewayBackendManager gatewayBackendManager,
-                                       QueryHistoryManager queryHistoryManager) {
-    super(gatewayBackendManager, queryHistoryManager);
+          QueryHistoryManager queryHistoryManager, UiManager uiManager) {
+    super(gatewayBackendManager, queryHistoryManager, uiManager);
     routingGroupWeightSum = new ConcurrentHashMap<String, Integer>();
     clusterQueueLengthMap = new ConcurrentHashMap<String, ConcurrentHashMap<String, Integer>>();
     weightedDistributionRouting = new HashMap<String, TreeMap<Integer, String>>();

@@ -8,8 +8,10 @@ public class HaRoutingManager extends RoutingManager {
   QueryHistoryManager queryHistoryManager;
 
   public HaRoutingManager(
-      GatewayBackendManager gatewayBackendManager, QueryHistoryManager queryHistoryManager) {
-    super(gatewayBackendManager);
+      GatewayBackendManager gatewayBackendManager,
+          QueryHistoryManager queryHistoryManager,
+          UiManager uiManager) {
+    super(gatewayBackendManager, uiManager);
     this.queryHistoryManager = queryHistoryManager;
   }
 

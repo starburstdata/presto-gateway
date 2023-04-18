@@ -1,5 +1,6 @@
 package com.lyft.data.gateway.ha.router;
 
+import com.google.common.base.Strings;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -31,9 +32,12 @@ public abstract class RoutingManager {
   private final LoadingCache<String, String> uiCookieBackendCache;
   private ExecutorService executorService = Executors.newFixedThreadPool(5);
   private GatewayBackendManager gatewayBackendManager;
+  UiManager uiManager;
 
-  public RoutingManager(GatewayBackendManager gatewayBackendManager) {
+
+  public RoutingManager(GatewayBackendManager gatewayBackendManager, UiManager uiManager) {
     this.gatewayBackendManager = gatewayBackendManager;
+    this.uiManager = uiManager;
     queryIdBackendCache =
         CacheBuilder.newBuilder()
             .maximumSize(10000)
@@ -53,7 +57,7 @@ public abstract class RoutingManager {
                 new CacheLoader<String, String>() {
                 @Override
                   public String load(String queryId) {
-                    return findBackendForUnknownQueryId(queryId);
+                    return findBackendForUnknownUiCookie(queryId);
                   }
                 });
   }
@@ -67,7 +71,7 @@ public abstract class RoutingManager {
   }
 
   public void setBackendForUiCookie(String uiCookie, String backend) {
-    uiCookieBackendCache.put(uiCookie, backend);
+    uiManager.submitUiBackend(uiCookie, backend);
   }
 
   /**
@@ -137,6 +141,7 @@ public abstract class RoutingManager {
    * @return
    */
   protected String findBackendForUnknownQueryId(String queryId) {
+
     List<ProxyBackendConfiguration> backends = gatewayBackendManager.getAllBackends();
 
     Map<String, Future<Integer>> responseCodes = new HashMap<>();
@@ -174,45 +179,15 @@ public abstract class RoutingManager {
   }
 
   protected String findBackendForUnknownUiCookie(String uiCookie) {
-    //TODO: make a lookup table in the DB. This doesn't seem reliable or correct
-    List<ProxyBackendConfiguration> backends = gatewayBackendManager.getAllBackends();
-
-    Map<String, Future<Integer>> responseCodes = new HashMap<>();
     try {
-      for (ProxyServerConfiguration backend : backends) {
-        String target = backend.getProxyTo() + "/ui/api/insights/login/test";
-
-        Future<Integer> call =
-            executorService.submit(
-                () -> {
-                    URL url = new URL(target);
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(5));
-                    conn.setReadTimeout((int) TimeUnit.SECONDS.toMillis(5));
-                    conn.setRequestMethod(HttpMethod.HEAD);
-                    conn.setRequestProperty("Trino-UI-Token", uiCookie);
-                    //TODO: import the header name from trino
-                    return conn.getResponseCode();
-                });
-        responseCodes.put(backend.getProxyTo(), call);
+      String backend = uiManager.getBackendForUiCookie(uiCookie);
+      if (!Strings.isNullOrEmpty(backend)) {
+        return backend;
       }
-      for (Map.Entry<String, Future<Integer>> entry : responseCodes.entrySet()) {
-        if (entry.getValue().isDone()) {
-          int responseCode = entry.getValue().get();
-          if (responseCode == 200) {
-            log.info("Found UI Cookie [{}] on backend [{}]", uiCookie, entry.getKey());
-            setBackendForQueryId(uiCookie, entry.getKey());
-            return entry.getKey();
-          }
-        }
-      }
-    } catch (Exception e) {
-      log.warn("Query id [{}] not found", uiCookie);
+    } finally {
+      // Return random backend if not found
+      log.warn(String.format("No backend found for UI Cookie %s!!", uiCookie));
+      return provideAdhocBackend("");
     }
-    // Fallback on first active backend if queryId mapping not found.
-    return gatewayBackendManager.getActiveAdhocBackends().get(0).getProxyTo();
   }
-
-
-
 }
