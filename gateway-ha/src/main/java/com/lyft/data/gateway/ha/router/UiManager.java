@@ -18,6 +18,7 @@ public class UiManager {
       connectionManager.open();
 
       UiRequestBackend dao = new UiRequestBackend();
+      log.info(String.format("Writing cookie %s for backend %s: %s", uiCookie, backend));
       UiRequestBackend.create(dao, uiCookie, backend);
     } catch (Exception e) {
       log.warn(String.format("Error saving cookie %s for backend %s: %s", uiCookie, backend, e));
