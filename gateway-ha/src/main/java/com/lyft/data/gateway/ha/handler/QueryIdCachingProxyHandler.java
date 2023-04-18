@@ -156,9 +156,11 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
 
   Optional<String> getUiCookie(HttpServletRequest request) {
     Cookie[] cookies = request.getCookies();
-    for (Cookie cookie : cookies) {
-      if (cookie.getName().equals("Trino-UI-Token")) {
-        return Optional.of(cookie.getValue());
+    if (cookies != null) {
+      for (Cookie cookie : cookies) {
+        if (cookie.getName().equals("Trino-UI-Token")) {
+          return Optional.of(cookie.getValue());
+        }
       }
     }
     return Optional.empty();
@@ -264,16 +266,16 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
                 String token = cookie.split("=")[1];
                 if (Strings.isNullOrEmpty(token)) {
                   log.warn(
-                          String.format(
-                                  "Set-Cookie UI token contains unexpected data: {}. Backend not set.",
-                                  cookie));
+                      String.format(
+                          "Set-Cookie UI token contains unexpected data: {}. Backend not set.",
+                          cookie));
                 } else {
                   routingManager.setBackendForUiCookie(token, queryDetail.getBackendUrl());
                 }
               }
             }
           } else {
-              log.info("No UI token found in Set Cookie");
+            log.info("No UI token found in Set Cookie");
           }
         }
       } else {
