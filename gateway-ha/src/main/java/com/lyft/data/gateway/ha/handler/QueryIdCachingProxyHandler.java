@@ -151,14 +151,14 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
 
     log.info("Rerouting [{}]--> [{}]", originalLocation, targetLocation);
     return targetLocation;
-
   }
 
   Optional<String> getUiCookie(HttpServletRequest request) {
     Cookie[] cookies = request.getCookies();
     if (cookies != null) {
       for (Cookie cookie : cookies) {
-        if (cookie.getName().equals("Trino-UI-Token")) {
+        if (cookie.getName().equals("Trino-UI-Token")
+                || cookie.getName().equals("__Secure-Trino-OAuth2-Token")) {
           return Optional.of(cookie.getValue());
         }
       }
@@ -257,10 +257,11 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
         if (response.containsHeader("Set-Cookie")) {
           String setCookie = response.getHeader("Set-Cookie");
           log.info("Response has Set-Cookie: " + setCookie);
-          if (setCookie.indexOf("Trino-UI-Token") > -1) {
+          if (setCookie.indexOf("Trino-UI-Token") > -1
+                  || setCookie.indexOf("__Secure-Trino-OAuth2-Token") > -1) {
             String[] cookies = setCookie.split(";");
             for (String cookie : cookies) {
-              if (cookie.indexOf("Trino-UI-Token") > -1) {
+              if (cookie.equals("Trino-UI-Token") || cookie.equals("__Secure-Trino-OAuth2-Token")) {
                 log.info("UI token found");
                 QueryHistoryManager.QueryDetail queryDetail = getQueryDetailsFromRequest(request);
                 String token = cookie.split("=")[1];
@@ -300,6 +301,10 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       output = new String(buffer);
     }
     log.debug("For Request [{}] got Response output [{}]", request.getRequestURI(), output);
+    log.debug("remote host: " + request.getRemoteHost());
+    log.debug("local addr: " + request.getLocalAddr());
+    log.debug("request url: " + request.getRequestURL());
+    log.debug("Server name: " + request.getServerName());
 
     QueryHistoryManager.QueryDetail queryDetail = getQueryDetailsFromRequest(request);
     log.debug("Extracting Proxy destination : [{}] for request : [{}]",

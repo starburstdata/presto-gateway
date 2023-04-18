@@ -147,6 +147,7 @@ public abstract class RoutingManager {
     Map<String, Future<Integer>> responseCodes = new HashMap<>();
     try {
       for (ProxyServerConfiguration backend : backends) {
+        //TODO: this won't work with authentication. Reuse the auth headers from the request.
         String target = backend.getProxyTo() + "/v1/query/" + queryId;
 
         Future<Integer> call =
