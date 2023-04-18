@@ -257,7 +257,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
           if (setCookie.indexOf("Trino-UI-Token") > -1) {
             String[] cookies = setCookie.split(";");
             for (String cookie : cookies) {
-              if (cookie.indexOf("Trino-UI-Token") > 0) {
+              if (cookie.indexOf("Trino-UI-Token") > -1) {
                 log.info("UI token found");
                 QueryHistoryManager.QueryDetail queryDetail = getQueryDetailsFromRequest(request);
                 String token = cookie.split("=")[1];
