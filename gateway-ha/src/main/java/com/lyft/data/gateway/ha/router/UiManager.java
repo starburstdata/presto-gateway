@@ -2,6 +2,9 @@ package com.lyft.data.gateway.ha.router;
 
 import com.lyft.data.gateway.ha.persistence.JdbcConnectionManager;
 import com.lyft.data.gateway.ha.persistence.dao.UiRequestBackend;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 
 public class UiManager {
   private JdbcConnectionManager connectionManager;
@@ -13,8 +16,11 @@ public class UiManager {
   public void submitUiBackend(String uiCookie, String backend) {
     try {
       connectionManager.open();
+
       UiRequestBackend dao = new UiRequestBackend();
       UiRequestBackend.create(dao, uiCookie, backend);
+    } catch (Exception e) {
+      log.warn(String.format("Error saving cookie %s for backend %s: %s", uiCookie, backend, e));
     } finally {
       connectionManager.close();
     }
