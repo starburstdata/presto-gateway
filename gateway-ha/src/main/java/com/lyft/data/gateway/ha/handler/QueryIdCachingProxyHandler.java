@@ -268,7 +268,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
         recordBackendForQueryId(request, response, buffer);
       } else if (request.getRequestURI().startsWith(PRESTO_UI_PATH)
               || request.getRequestURI().startsWith(OAUTH2_PATH)
-              && response.containsHeader("Set-Cookie")) {
+              && response.getHeader("Set-Cookie") != null) {
         // check if request contained ui token or not
         String setCookie = response.getHeader("Set-Cookie");
         log.info("Response has Set-Cookie: " + setCookie);

@@ -77,17 +77,6 @@
             </tbody>
         </table>
     </div>
-
-    <div><h3> Query history distribution</h3>
-        <ul class="chart">
-            <#list queryDistribution?keys as cluster>
-                <li data-data="${queryDistribution[cluster]?string}">
-                    ${cluster?string} => ${queryDistribution[cluster]?string}
-                </li>
-            </#list>
-        </ul>
-    </div>
-
 </#if>
 <#include "footer.ftl">
 
