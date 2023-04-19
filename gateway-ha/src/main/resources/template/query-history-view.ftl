@@ -62,14 +62,14 @@
                 <tr>
                     <td><a href="/ui/query.html?${q.queryId}"
                            target="_blank">${q.queryId}</a></td>
-                    <td>  ${q.user}</td>
+                    <td>  ${q.user!def}</td>
                     <td>
                         <#if q.source??>
                             ${q.source}
                         </#if>
                     </td>
-                    <td>${q.queryText}</td>
-                    <td data-order="${q.captureTime}">
+                    <td>${q.queryText!foo}</td>
+                    <td data-order="${q.captureTime!foo}">
                         <script>document.write(new Date(${q.captureTime?long?c}).toLocaleString());</script>
                     </td>
                 </tr>
