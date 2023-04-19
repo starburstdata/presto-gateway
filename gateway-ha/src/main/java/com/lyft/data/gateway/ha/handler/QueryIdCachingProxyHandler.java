@@ -78,6 +78,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
 
   @Override
   public void preConnectionHook(HttpServletRequest request, Request proxyRequest) {
+    log.debug("Enter pre conection hook");
     if (request.getMethod().equals(HttpMethod.POST)
         && request.getRequestURI().startsWith(V1_STATEMENT_PATH)) {
       requestMeter.mark();
@@ -117,6 +118,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
 
   @Override
   public String rewriteTarget(HttpServletRequest request) {
+    log.debug("Enter rewriteTarget");
     /* Here comes the load balancer / gateway */
     String backendAddress = "http://localhost:" + serverApplicationPort;
     // Only load balance presto query APIs.
@@ -263,12 +265,14 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       int offset,
       int length,
       Callback callback) {
+    log.debug("Enter post conection hook");
+    log.debug("URI: " + request.getRequestURI());
     try {
       if (doRecordQueryId(request)) {
         recordBackendForQueryId(request, response, buffer);
       } else if ((request.getRequestURI().startsWith(PRESTO_UI_PATH)
               || request.getRequestURI().startsWith(OAUTH2_PATH))
-              && response.getHeader("Set-Cookie") != null) {
+              && response.containsHeader("Set-Cookie")) {
         // check if request contained ui token or not
         String setCookie = response.getHeader("Set-Cookie");
         log.info("Response has Set-Cookie: " + setCookie);
