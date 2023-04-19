@@ -124,13 +124,16 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     // Only load balance presto query APIs.
     if (isPathWhiteListed(request.getRequestURI())) {
       String queryId = extractQueryIdIfPresent(request);
-      Optional<String> uiCookie = getUiCookie(request);
       if (!Strings.isNullOrEmpty(queryId)) {
         backendAddress = routingManager.findBackendForQueryId(queryId);
-      } else if (uiCookie.isPresent()) {
-        backendAddress = findBackendForUiCookie(uiCookie.get());
       } else {
-        backendAddress = getBackendForRequest(request);
+        if (!Strings.isNullOrEmpty(request.getRequestedSessionId())) {
+          backendAddress = sessionBackendMap.get(routingManager.findBackendForQueryId(queryId));
+        } else {
+          backendAddress = getBackendForRequest(request);
+          sessionBackendMap.put(request.getSession().getId(), backendAddress);
+          //TODO: figure out how to purge the session ids
+        }
       }
     }
     if (isAuthEnabled() && request.getHeader("Authorization") != null) {
@@ -153,6 +156,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
                     + request.getServerPort()
                     + request.getRequestURI()
                     + (request.getQueryString() != null ? "?" + request.getQueryString() : "");
+    /*
     if (doRecordQueryId(request) || (request.getRequestURI().startsWith(PRESTO_UI_PATH)
             && request.getCookies() != null
             && !Arrays.stream(request.getCookies()).anyMatch(
@@ -161,6 +165,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       sessionBackendMap.put(request.getSession().getId(), backendAddress);
       log.debug("Session id: " + request.getSession().getId());
     }
+    */
     log.info("Rerouting [{}]--> [{}]", originalLocation, targetLocation);
     return targetLocation;
   }
@@ -276,6 +281,9 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
         // check if request contained ui token or not
         String setCookie = response.getHeader("Set-Cookie");
         log.info("Response has Set-Cookie: " + setCookie);
+        if (setCookie.equals("delete")) {
+          //TODO: do something
+        }
         if (setCookie.indexOf("Trino-UI-Token") > -1
                 || setCookie.indexOf("__Secure-Trino-OAuth2-Token") > -1) {
           String[] cookies = setCookie.split(";");
