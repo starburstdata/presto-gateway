@@ -69,23 +69,6 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
   @Override
   protected String rewriteTarget(HttpServletRequest request) {
     String target = null;
-    /*
-    if (request.getCookies() != null && Arrays.stream(request.getCookies()).anyMatch(
-        cookie -> cookie.getName().equals("__Secure-Trino-Nonce"))) {
-      target = trinoNonceBackendMap.get(
-        Arrays.stream(
-                request.getCookies()).filter(
-                    cookie -> cookie.getName().equals("__Secure-Trino-Nonce")).findAny());
-
-      if (target == null) {
-        log.error("_Secure-Trino-Nonce is set but wasn't stored. OAuth login may fail.");
-      } else {
-        log.debug("Using nonce routing");
-        return target;
-      }
-    }
-
-     */
     if (proxyHandler != null) {
       target = proxyHandler.rewriteTarget(request);
     }
@@ -102,52 +85,17 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
           HttpServletRequest clientRequest,
           HttpServletResponse proxyResponse,
           Response serverResponse) {
-    HttpFields serverHeaders = serverResponse.getHeaders();
-    log.debug("Server headers: " + serverHeaders.toString());
-
-    for (String header : proxyResponse.getHeaderNames()) {
-      log.debug("proxy response header: " + header);
-    }
     if (clientRequest.getRequestURI().equals("/ui/api/insights/logout")) {
-      //serverHeaders.add("Set-Cookie", "JSESSIONID=delete;Max-Age=0;HttpOnly");
       Optional<Cookie> requestJsessionCookie =
           Arrays.stream(clientRequest.getCookies()).filter(
               cookie -> cookie.getName().equalsIgnoreCase("JSESSIONID")).findAny();
       if (requestJsessionCookie.isPresent()) {
-        //Cookie jessionCookie = new Cookie("JSESSIONID", "delete");
-        //jessionCookie.setMaxAge(0);
         requestJsessionCookie.get().setMaxAge(0);
         requestJsessionCookie.get().setValue("delete");
-        requestJsessionCookie.get().setPath("/");
+        requestJsessionCookie.get().setPath("/"); //this seems to always be the jsessionid path
         proxyResponse.addCookie(requestJsessionCookie.get());
       }
     }
-    /*
-    if (serverHeaders.containsKey("Set-Cookie")) {
-      // check if request contained ui token or not
-      String setCookie = serverHeaders.get("Set-Cookie");
-      log.info("Proxy Response has Set-Cookie: " + setCookie);
-      if (setCookie.indexOf("__Secure-Trino-Nonce") > -1) {
-        String[] cookies = setCookie.split(";");
-        for (String cookie : cookies) {
-          String name = cookie.split("=")[0];
-          String value = cookie.split("=")[1];
-          if (name.equals("__Secure-Trino-Nonce")) {
-            if (value.equals("delete")) {
-              log.info("deleting nonce from cache");
-              trinoNonceBackendMap.remove(value);
-            } else {
-              log.info("Added nonce " + value + " for backend "
-                      + idBackendMap.get(this.getRequestId(clientRequest)));
-              trinoNonceBackendMap.put(
-                      cookie.split(";")[1],
-                      idBackendMap.get(this.getRequestId(clientRequest)));
-            }
-          }
-        }
-      }
-    }
-    */
     super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
   }
 

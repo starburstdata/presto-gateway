@@ -137,9 +137,6 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
           backendAddress = getBackendForRequest(request);
           sessionBackendMap.put(request.getSession().getId(), backendAddress);
           log.info("using session id " + request.getSession().getId());
-          //TODO: figure out how to purge the session ids
-          //TODO: delete JESSION cookie on logout. request.changeSessionId("delete");?
-
         }
       }
     }
@@ -280,8 +277,11 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     log.debug("Session Id: " + request.getSession().getId());
 
     QueryHistoryManager.QueryDetail queryDetail = getQueryDetailsFromRequest(request);
+    //TODO: use the requestId or something else that changes per query,
+    // since this will only use one backend
     String backendUrl = Strings.isNullOrEmpty(queryDetail.getBackendUrl())
-            ? sessionBackendMap.get(request.getSession().getId()) : queryDetail.getBackendUrl();
+            ? sessionBackendMap.get(request.getSession().getId().split("\\.")[0])
+            : queryDetail.getBackendUrl();
     log.debug("Extracting Proxy destination : [{}] for request : [{}]",
             backendUrl, request.getRequestURI());
 
@@ -296,7 +296,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
                 "QueryId [{}] mapped with proxy [{}]",
                 queryDetail.getQueryId(),
                 backendUrl);
-        sessionBackendMap.remove(request.getSession().getId());
+        //sessionBackendMap.remove(request.getSession().getId());
       } else {
         log.debug("QueryId [{}] could not be cached", queryDetail.getQueryId());
       }
