@@ -91,6 +91,15 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
     log.debug("Target : " + target);
     return target;
   }
+
+  @Override
+  protected void onServerResponseHeaders(
+          HttpServletRequest clientRequest,
+          HttpServletResponse proxyResponse,
+          Response serverResponse) {
+    super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
+  }
+
   /*
   @Override
   protected void onServerResponseHeaders(
