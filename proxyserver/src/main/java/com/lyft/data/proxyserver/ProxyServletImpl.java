@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -107,7 +108,10 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
       log.debug("proxy response header: " + header);
     }
     if (clientRequest.getRequestURI().equals("/ui/api/insights/logout")) {
-      serverHeaders.add("Set-Cookie", "JSESSIONID=delete;Max-Age=0;HttpOnly");
+      //serverHeaders.add("Set-Cookie", "JSESSIONID=delete;Max-Age=0;HttpOnly");
+      Cookie jessionCookie = new Cookie("JSESSIONID", "delete");
+      jessionCookie.setMaxAge(0);
+      proxyResponse.addCookie(jessionCookie);
     }
     /*
     if (serverHeaders.containsKey("Set-Cookie")) {
