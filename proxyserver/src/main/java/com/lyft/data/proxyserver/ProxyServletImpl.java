@@ -112,15 +112,14 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
       //serverHeaders.add("Set-Cookie", "JSESSIONID=delete;Max-Age=0;HttpOnly");
       Optional<Cookie> requestJsessionCookie =
           Arrays.stream(clientRequest.getCookies()).filter(
-              cookie -> cookie.getName().equals("JSESSIONID")).findAny();
-      Cookie jessionCookie = new Cookie("JSESSIONID", "delete");
-      jessionCookie.setMaxAge(0);
+              cookie -> cookie.getName().equalsIgnoreCase("JSESSIONID")).findAny();
       if (requestJsessionCookie.isPresent()) {
-        jessionCookie.setPath(requestJsessionCookie.get().getPath());
-      } else {
-        jessionCookie.setPath("/ui");
+        //Cookie jessionCookie = new Cookie("JSESSIONID", "delete");
+        //jessionCookie.setMaxAge(0);
+        requestJsessionCookie.get().setMaxAge(0);
+        requestJsessionCookie.get().setValue("delete");
+        proxyResponse.addCookie(requestJsessionCookie.get());
       }
-      proxyResponse.addCookie(jessionCookie);
     }
     /*
     if (serverHeaders.containsKey("Set-Cookie")) {
