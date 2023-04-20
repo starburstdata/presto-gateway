@@ -67,6 +67,7 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
   @Override
   protected String rewriteTarget(HttpServletRequest request) {
     String target = null;
+    /*
     if (request.getCookies() != null && Arrays.stream(request.getCookies()).anyMatch(
         cookie -> cookie.getName().equals("__Secure-Trino-Nonce"))) {
       target = trinoNonceBackendMap.get(
@@ -81,6 +82,8 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
         return target;
       }
     }
+
+     */
     if (proxyHandler != null) {
       target = proxyHandler.rewriteTarget(request);
     }
@@ -103,7 +106,7 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
     for (String header : proxyResponse.getHeaderNames()) {
       log.debug("proxy response header: " + header);
     }
-    /*    if (serverHeaders.containsKey("Set-Cookie")) {
+    if (serverHeaders.containsKey("Set-Cookie")) {
       // check if request contained ui token or not
       String setCookie = serverHeaders.get("Set-Cookie");
       log.info("Proxy Response has Set-Cookie: " + setCookie);
@@ -116,8 +119,7 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
             if (value.equals("delete")) {
               log.info("deleting nonce from cache");
               trinoNonceBackendMap.remove(value);
-            }
-            else {
+            } else {
               log.info("Added nonce " + value + " for backend "
                       + idBackendMap.get(this.getRequestId(clientRequest)));
               trinoNonceBackendMap.put(
@@ -127,7 +129,7 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
           }
         }
       }
-    }*/
+    }
     super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
   }
 
