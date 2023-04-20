@@ -128,7 +128,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
         backendAddress = routingManager.findBackendForQueryId(queryId);
       } else {
         if (!Strings.isNullOrEmpty(request.getRequestedSessionId())) {
-          backendAddress = sessionBackendMap.get(routingManager.findBackendForQueryId(queryId));
+          backendAddress = sessionBackendMap.get(request.getRequestedSessionId());
         } else {
           backendAddress = getBackendForRequest(request);
           sessionBackendMap.put(request.getSession().getId(), backendAddress);
