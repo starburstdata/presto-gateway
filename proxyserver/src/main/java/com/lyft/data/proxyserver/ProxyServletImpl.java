@@ -118,7 +118,7 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
         //jessionCookie.setMaxAge(0);
         requestJsessionCookie.get().setMaxAge(0);
         requestJsessionCookie.get().setValue("delete");
-        requestJsessionCookie.get().setPath("/ui/");
+        requestJsessionCookie.get().setPath("/");
         proxyResponse.addCookie(requestJsessionCookie.get());
       }
     }
