@@ -132,7 +132,10 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
         } else {
           backendAddress = getBackendForRequest(request);
           sessionBackendMap.put(request.getSession().getId(), backendAddress);
+          log.info("using session id " + request.getSession().getId());
           //TODO: figure out how to purge the session ids
+          //TODO: delete JESSION cookie on logout. request.changeSessionId("delete");?
+
         }
       }
     }
@@ -275,9 +278,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     try {
       if (doRecordQueryId(request)) {
         recordBackendForQueryId(request, response, buffer);
-      } else if ((request.getRequestURI().startsWith(PRESTO_UI_PATH)
-              || request.getRequestURI().startsWith(OAUTH2_PATH))
-              && response.containsHeader("Set-Cookie")) {
+      } else if (response.containsHeader("Set-Cookie")) {
         // check if request contained ui token or not
         String setCookie = response.getHeader("Set-Cookie");
         log.info("Response has Set-Cookie: " + setCookie);

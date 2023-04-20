@@ -1,5 +1,8 @@
 package com.lyft.data.proxyserver;
 
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import javax.servlet.http.HttpServletRequest;
@@ -18,6 +21,8 @@ import org.eclipse.jetty.util.ssl.SslContextFactory;
 public class ProxyServletImpl extends ProxyServlet.Transparent {
   private ProxyHandler proxyHandler;
   private ProxyServerConfiguration serverConfig;
+  private final Map<String, String> trinoNonceBackendMap = new HashMap<>();
+  private final Map<Integer, String> idBackendMap = new HashMap<>();
 
   public void setProxyHandler(ProxyHandler proxyHandler) {
     this.proxyHandler = proxyHandler;
@@ -61,14 +66,59 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
   @Override
   protected String rewriteTarget(HttpServletRequest request) {
     String target = null;
+    if (request.getCookies() != null && Arrays.stream(request.getCookies()).anyMatch(
+        cookie -> cookie.getName().equals("__Secure-Trino-Nonce"))) {
+      target = trinoNonceBackendMap.get(
+        Arrays.stream(
+                request.getCookies()).filter(
+                    cookie -> cookie.getName().equals("__Secure-Trino-Nonce")).findAny());
+      if (target == null) {
+        log.error("_Secure-Trino-Nonce is set but wasn't stored. OAuth login may fail.");
+      } else {
+        return target;
+      }
+    }
     if (proxyHandler != null) {
       target = proxyHandler.rewriteTarget(request);
     }
     if (target == null) {
       target = super.rewriteTarget(request);
     }
+    idBackendMap.put(this.getRequestId(request), target);
     log.debug("Target : " + target);
     return target;
+  }
+
+  @Override
+  protected void onProxyResponseSuccess(
+          HttpServletRequest clientRequest,
+          HttpServletResponse proxyResponse,
+          Response serverResponse) {
+    if (proxyResponse.containsHeader("Set-Cookie")) {
+      // check if request contained ui token or not
+      String setCookie = proxyResponse.getHeader("Set-Cookie");
+      log.info("Response has Set-Cookie: " + setCookie);
+      if (setCookie.indexOf("__Secure-Trino-Nonce") > -1) {
+        String[] cookies = setCookie.split(";");
+        for (String cookie : cookies) {
+          String name = cookie.split("=")[0];
+          String value = cookie.split("=")[1];
+          if (name.equals("__Secure-Trino-Nonce")) {
+            if (value.equals("delete")) {
+              log.info("deleting nonce from cache");
+              trinoNonceBackendMap.remove(value);
+            } else {
+              log.info("Added nonce " + value + " for backend "
+                      + idBackendMap.get(this.getRequestId(clientRequest)));
+              trinoNonceBackendMap.put(
+                      cookie.split(";")[1],
+                      idBackendMap.get(this.getRequestId(clientRequest)));
+            }
+          }
+        }
+      }
+      super.onProxyResponseSuccess(clientRequest, proxyResponse, serverResponse);
+    }
   }
 
   /**
