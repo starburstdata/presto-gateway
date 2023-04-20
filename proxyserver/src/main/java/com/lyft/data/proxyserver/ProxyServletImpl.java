@@ -3,6 +3,7 @@ package com.lyft.data.proxyserver;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import javax.servlet.http.Cookie;
@@ -109,8 +110,16 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
     }
     if (clientRequest.getRequestURI().equals("/ui/api/insights/logout")) {
       //serverHeaders.add("Set-Cookie", "JSESSIONID=delete;Max-Age=0;HttpOnly");
+      Optional<Cookie> requestJsessionCookie =
+          Arrays.stream(clientRequest.getCookies()).filter(
+              cookie -> cookie.getName().equals("JSESSIONID")).findAny();
       Cookie jessionCookie = new Cookie("JSESSIONID", "delete");
       jessionCookie.setMaxAge(0);
+      if (requestJsessionCookie.isPresent()) {
+        jessionCookie.setPath(requestJsessionCookie.get().getPath());
+      } else {
+        jessionCookie.setPath("/ui");
+      }
       proxyResponse.addCookie(jessionCookie);
     }
     /*
