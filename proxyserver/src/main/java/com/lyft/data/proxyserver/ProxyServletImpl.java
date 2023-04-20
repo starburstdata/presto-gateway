@@ -107,8 +107,9 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
       log.debug("proxy response header: " + header);
     }
     if (clientRequest.getRequestURI().equals("/ui/api/insights/logout")) {
-      String setCookie = proxyResponse.getHeader("Set-Cookie");
-      proxyResponse.setHeader("Set-Cookie","JSESSIONID=delete;" + setCookie);
+      String setCookie = serverHeaders.get("Set-Cookie");
+      serverHeaders.remove("Set-Cookie");
+      serverHeaders.add("Set-Cookie", "JSESSIONID=delete;" + setCookie);
     }
     /*
     if (serverHeaders.containsKey("Set-Cookie")) {
