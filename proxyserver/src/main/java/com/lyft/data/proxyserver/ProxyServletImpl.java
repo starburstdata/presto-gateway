@@ -91,7 +91,7 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
     log.debug("Target : " + target);
     return target;
   }
-
+  /*
   @Override
   protected void onServerResponseHeaders(
           HttpServletRequest clientRequest,
@@ -116,7 +116,8 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
             if (value.equals("delete")) {
               log.info("deleting nonce from cache");
               trinoNonceBackendMap.remove(value);
-            } else {
+            }
+            else {
               log.info("Added nonce " + value + " for backend "
                       + idBackendMap.get(this.getRequestId(clientRequest)));
               trinoNonceBackendMap.put(
@@ -126,9 +127,10 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
           }
         }
       }
-      super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
     }
+    super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
   }
+ */
 
   /**
    * Customize the response returned from remote server.
