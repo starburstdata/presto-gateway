@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.client.api.Response;
+import org.eclipse.jetty.http.HttpFields;
 import org.eclipse.jetty.proxy.ProxyServlet;
 import org.eclipse.jetty.util.Callback;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
@@ -72,9 +73,11 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
         Arrays.stream(
                 request.getCookies()).filter(
                     cookie -> cookie.getName().equals("__Secure-Trino-Nonce")).findAny());
+
       if (target == null) {
         log.error("_Secure-Trino-Nonce is set but wasn't stored. OAuth login may fail.");
       } else {
+        log.debug("Using nonce routing");
         return target;
       }
     }
@@ -90,14 +93,20 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
   }
 
   @Override
-  protected void onProxyResponseSuccess(
+  protected void onServerResponseHeaders(
           HttpServletRequest clientRequest,
           HttpServletResponse proxyResponse,
           Response serverResponse) {
-    if (proxyResponse.containsHeader("Set-Cookie")) {
+    HttpFields serverHeaders = serverResponse.getHeaders();
+    log.debug("Server headers: " + serverHeaders.toString());
+
+    for (String header : proxyResponse.getHeaderNames()) {
+      log.debug("proxy response header: " + header);
+    }
+    if (serverHeaders.containsKey("Set-Cookie")) {
       // check if request contained ui token or not
-      String setCookie = proxyResponse.getHeader("Set-Cookie");
-      log.info("Response has Set-Cookie: " + setCookie);
+      String setCookie = serverHeaders.get("Set-Cookie");
+      log.info("Proxy Response has Set-Cookie: " + setCookie);
       if (setCookie.indexOf("__Secure-Trino-Nonce") > -1) {
         String[] cookies = setCookie.split(";");
         for (String cookie : cookies) {
@@ -117,7 +126,7 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
           }
         }
       }
-      super.onProxyResponseSuccess(clientRequest, proxyResponse, serverResponse);
+      super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
     }
   }
 

@@ -163,35 +163,8 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
                     + request.getServerPort()
                     + request.getRequestURI()
                     + (request.getQueryString() != null ? "?" + request.getQueryString() : "");
-    /*
-    if (doRecordQueryId(request) || (request.getRequestURI().startsWith(PRESTO_UI_PATH)
-            && request.getCookies() != null
-            && !Arrays.stream(request.getCookies()).anyMatch(
-              cookie -> cookie.getName().equals("Trino-UI-Token")
-              || cookie.getName().equals("__Secure-Trino-OAuth2-Token")))) {
-      sessionBackendMap.put(request.getSession().getId(), backendAddress);
-      log.debug("Session id: " + request.getSession().getId());
-    }
-    */
     log.info("Rerouting [{}]--> [{}]", originalLocation, targetLocation);
     return targetLocation;
-  }
-
-  Optional<String> getUiCookie(HttpServletRequest request) {
-    Cookie[] cookies = request.getCookies();
-    if (cookies != null) {
-      for (Cookie cookie : cookies) {
-        if (cookie.getName().equals("Trino-UI-Token")
-                || cookie.getName().equals("__Secure-Trino-OAuth2-Token")) {
-          return Optional.of(cookie.getValue());
-        }
-      }
-    }
-    return Optional.empty();
-  }
-
-  String findBackendForUiCookie(String uiCookie) {
-    return routingManager.findBackendForUiCookie(uiCookie);
   }
 
   String getBackendForRequest(HttpServletRequest request) {
@@ -282,38 +255,6 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     try {
       if (doRecordQueryId(request)) {
         recordBackendForQueryId(request, response, buffer);
-      } else if (response.containsHeader("Set-Cookie")) {
-        // check if request contained ui token or not
-        String setCookie = response.getHeader("Set-Cookie");
-        log.info("Response has Set-Cookie: " + setCookie);
-        if (setCookie.equals("delete")) {
-          //TODO: do something
-        }
-        if (setCookie.indexOf("Trino-UI-Token") > -1
-                || setCookie.indexOf("__Secure-Trino-OAuth2-Token") > -1) {
-          String[] cookies = setCookie.split(";");
-          for (String cookie : cookies) {
-            if (cookie.equals("Trino-UI-Token") || cookie.equals("__Secure-Trino-OAuth2-Token")) {
-              log.info("UI token found");
-              QueryHistoryManager.QueryDetail queryDetail = getQueryDetailsFromRequest(request);
-              String backendUrl = Strings.isNullOrEmpty(queryDetail.getBackendUrl())
-                      ? sessionBackendMap.get(request.getSession().getId()) :
-                      queryDetail.getBackendUrl();
-              String token = cookie.split("=")[1];
-              if (Strings.isNullOrEmpty(token)) {
-                log.warn(
-                    String.format(
-                        "Set-Cookie UI token contains unexpected data: {}. Backend not set.",
-                        cookie));
-              } else {
-                routingManager.setBackendForUiCookie(token, backendUrl);
-                sessionBackendMap.remove(request.getSession().getId());
-              }
-            }
-          }
-        } else {
-          log.info("No UI token found in Set Cookie");
-        }
       } else {
         log.debug("SKIPPING For {}", request.getRequestURI());
       }
