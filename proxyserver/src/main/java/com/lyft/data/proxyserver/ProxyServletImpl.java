@@ -97,22 +97,13 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
           HttpServletRequest clientRequest,
           HttpServletResponse proxyResponse,
           Response serverResponse) {
-    super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
-  }
-
-  /*
-  @Override
-  protected void onServerResponseHeaders(
-          HttpServletRequest clientRequest,
-          HttpServletResponse proxyResponse,
-          Response serverResponse) {
     HttpFields serverHeaders = serverResponse.getHeaders();
     log.debug("Server headers: " + serverHeaders.toString());
 
     for (String header : proxyResponse.getHeaderNames()) {
       log.debug("proxy response header: " + header);
     }
-    if (serverHeaders.containsKey("Set-Cookie")) {
+    /*    if (serverHeaders.containsKey("Set-Cookie")) {
       // check if request contained ui token or not
       String setCookie = serverHeaders.get("Set-Cookie");
       log.info("Proxy Response has Set-Cookie: " + setCookie);
@@ -136,10 +127,9 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
           }
         }
       }
-    }
+    }*/
     super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
   }
- */
 
   /**
    * Customize the response returned from remote server.
