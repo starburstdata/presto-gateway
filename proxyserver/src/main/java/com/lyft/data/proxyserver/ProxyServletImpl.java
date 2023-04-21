@@ -25,7 +25,6 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
   private ProxyHandler proxyHandler;
   private ProxyServerConfiguration serverConfig;
   private final Map<String, String> trinoNonceBackendMap = new HashMap<>();
-  private final Map<Integer, String> idBackendMap = new HashMap<>();
 
   public void setProxyHandler(ProxyHandler proxyHandler) {
     this.proxyHandler = proxyHandler;
@@ -70,12 +69,11 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
   protected String rewriteTarget(HttpServletRequest request) {
     String target = null;
     if (proxyHandler != null) {
-      target = proxyHandler.rewriteTarget(request);
+      target = proxyHandler.rewriteTarget(request, this.getRequestId(request));
     }
     if (target == null) {
       target = super.rewriteTarget(request);
     }
-    idBackendMap.put(this.getRequestId(request), target);
     log.debug("Target : " + target);
     return target;
   }

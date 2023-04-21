@@ -27,6 +27,12 @@ public class ProxyHandler {
     return null;
   }
 
+  protected String rewriteTarget(HttpServletRequest request, int requestId) {
+    // Dont override this unless absolutely needed.
+    return null;
+  }
+
+
   /**
    * Request interceptor.
    *
@@ -54,6 +60,22 @@ public class ProxyHandler {
       int offset,
       int length,
       Callback callback) {
+    try {
+      response.getOutputStream().write(buffer, offset, length);
+      callback.succeeded();
+    } catch (Throwable var9) {
+      callback.failed(var9);
+    }
+  }
+
+  protected void postConnectionHook(
+          HttpServletRequest request,
+          HttpServletResponse response,
+          byte[] buffer,
+          int offset,
+          int length,
+          Callback callback,
+          int requestId) {
     try {
       response.getOutputStream().write(buffer, offset, length);
       callback.succeeded();

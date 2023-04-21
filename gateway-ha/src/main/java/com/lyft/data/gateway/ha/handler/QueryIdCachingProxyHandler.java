@@ -62,6 +62,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
   private final int serverApplicationPort;
 
   private final Map<String, String> sessionBackendMap = new HashMap<>();
+  private final Map<Integer, String> requestIdBackendMap = new HashMap<>();
 
   public QueryIdCachingProxyHandler(
       QueryHistoryManager queryHistoryManager,
@@ -117,7 +118,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
   }
 
   @Override
-  public String rewriteTarget(HttpServletRequest request) {
+  public String rewriteTarget(HttpServletRequest request, int requestId) {
     log.debug("Enter rewriteTarget");
     /* Here comes the load balancer / gateway */
     String backendAddress = "http://localhost:" + serverApplicationPort;
@@ -127,7 +128,10 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       if (!Strings.isNullOrEmpty(queryId)) {
         backendAddress = routingManager.findBackendForQueryId(queryId);
       } else {
-        if (!Strings.isNullOrEmpty(request.getRequestedSessionId())) {
+        if (!Strings.isNullOrEmpty(request.getRequestedSessionId())
+            && !(request.getRequestURI().startsWith(V1_STATEMENT_PATH)
+                || request.getRequestURI().startsWith(V1_STATEMENT_PATH))) {
+          //pin browser sessions to the same backend, but load balance queries
           backendAddress = sessionBackendMap.get(request.getRequestedSessionId().split("\\.")[0]);
           if (Strings.isNullOrEmpty(backendAddress)) {
             log.error("Unknown jessionid: " + request.getRequestedSessionId());
@@ -137,6 +141,10 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
           backendAddress = getBackendForRequest(request);
           sessionBackendMap.put(request.getSession().getId(), backendAddress);
           log.info("using session id " + request.getSession().getId());
+          if (request.getRequestURI().startsWith(V1_STATEMENT_PATH)
+                  || request.getRequestURI().startsWith(V1_STATEMENT_PATH)) {
+            requestIdBackendMap.put(requestId, backendAddress);
+          }
         }
       }
     }
@@ -246,12 +254,13 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       byte[] buffer,
       int offset,
       int length,
-      Callback callback) {
+      Callback callback,
+      int requestId) {
     log.debug("Enter post conection hook");
     log.debug("URI: " + request.getRequestURI());
     try {
       if (doRecordQueryId(request)) {
-        recordBackendForQueryId(request, response, buffer);
+        recordBackendForQueryId(request, response, buffer, requestId);
       } else {
         log.debug("SKIPPING For {}", request.getRequestURI());
       }
@@ -264,7 +273,8 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
   void recordBackendForQueryId(
       HttpServletRequest request,
       HttpServletResponse response,
-      byte[] buffer)
+      byte[] buffer,
+      int requestId)
       throws IOException {
     String output;
     boolean isGZipEncoding = isGZipEncoding(response);
@@ -274,13 +284,13 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       output = new String(buffer);
     }
     log.debug("For Request [{}] got Response output [{}]", request.getRequestURI(), output);
-    log.debug("Session Id: " + request.getSession().getId());
+    log.debug("Request Id: " + requestId);
 
     QueryHistoryManager.QueryDetail queryDetail = getQueryDetailsFromRequest(request);
     //TODO: use the requestId or something else that changes per query,
     // since this will only use one backend
     String backendUrl = Strings.isNullOrEmpty(queryDetail.getBackendUrl())
-            ? sessionBackendMap.get(request.getSession().getId().split("\\.")[0])
+            ? requestIdBackendMap.get(requestId)
             : queryDetail.getBackendUrl();
     log.debug("Extracting Proxy destination : [{}] for request : [{}]",
             backendUrl, request.getRequestURI());
@@ -290,13 +300,14 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       queryDetail.setQueryId(results.get("id"));
 
       if (!Strings.isNullOrEmpty(queryDetail.getQueryId())) {
+        //TODO: use the DB to back the queryId cache so it is shared across gateway instances
         routingManager.setBackendForQueryId(
                 queryDetail.getQueryId(), backendUrl);
         log.debug(
                 "QueryId [{}] mapped with proxy [{}]",
                 queryDetail.getQueryId(),
                 backendUrl);
-        //sessionBackendMap.remove(request.getSession().getId());
+        requestIdBackendMap.remove(requestId);
       } else {
         log.debug("QueryId [{}] could not be cached", queryDetail.getQueryId());
       }
