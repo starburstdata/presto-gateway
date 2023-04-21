@@ -122,7 +122,8 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
             "[{}] proxying content to downstream: [{}] bytes", this.getRequestId(request), length);
       }
       if (this.proxyHandler != null) {
-        proxyHandler.postConnectionHook(request, response, buffer, offset, length, callback, this.getRequestId(request));
+        proxyHandler.postConnectionHook(
+                request, response, buffer, offset, length, callback, this.getRequestId(request));
       } else {
         super.onResponseContent(request, response, proxyResponse, buffer, offset, length, callback);
       }
