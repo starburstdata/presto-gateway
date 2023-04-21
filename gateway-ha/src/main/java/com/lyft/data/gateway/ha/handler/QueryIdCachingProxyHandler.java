@@ -122,32 +122,30 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     log.debug("Enter rewriteTarget");
     /* Here comes the load balancer / gateway */
     String backendAddress = "http://localhost:" + serverApplicationPort;
-    // Only load balance presto query APIs.
+    // Only load balance presto query and ui APIs.
     if (isPathWhiteListed(request.getRequestURI())) {
       String queryId = extractQueryIdIfPresent(request);
       if (!Strings.isNullOrEmpty(queryId)) {
         backendAddress = routingManager.findBackendForQueryId(queryId);
-      } else {
-        if (!Strings.isNullOrEmpty(request.getRequestedSessionId())
-            && !(request.getRequestURI().startsWith(V1_STATEMENT_PATH)
-                || request.getRequestURI().startsWith(V1_STATEMENT_PATH))) {
-          //pin browser sessions to the same backend, but load balance queries
-          backendAddress = sessionBackendMap.get(request.getRequestedSessionId().split("\\.")[0]);
-          if (Strings.isNullOrEmpty(backendAddress)) {
-            log.error("Unknown jessionid: " + request.getRequestedSessionId());
-            backendAddress = getBackendForRequest(request);
-          }
-        } else {
+      } else if (doRecordQueryId(request)) {
+        backendAddress = getBackendForRequest(request);
+        log.debug("mapping " + requestId + " to " + backendAddress);
+        requestIdBackendMap.put(requestId, backendAddress);
+      } else if (!Strings.isNullOrEmpty(request.getRequestedSessionId())) {
+        //pin browser sessions to the same backend based on jsessionid, but load balance queries
+        backendAddress = sessionBackendMap.get(request.getRequestedSessionId().split("\\.")[0]);
+        if (Strings.isNullOrEmpty(backendAddress)) {
+          log.error("Unknown jessionid: " + request.getRequestedSessionId());
+          //TODO: reset jsessionid cookie if this happens
           backendAddress = getBackendForRequest(request);
-          sessionBackendMap.put(request.getSession().getId(), backendAddress);
-          log.info("using session id " + request.getSession().getId());
-          if (request.getRequestURI().startsWith(V1_STATEMENT_PATH)
-                  || request.getRequestURI().startsWith(V1_STATEMENT_PATH)) {
-            requestIdBackendMap.put(requestId, backendAddress);
-          }
         }
+      } else {
+        backendAddress = getBackendForRequest(request);
+        sessionBackendMap.put(request.getSession().getId(), backendAddress);
+        log.debug("using session id " + request.getSession().getId());
       }
     }
+
     if (isAuthEnabled() && request.getHeader("Authorization") != null) {
       if (!handleAuthRequest(request)) {
         // This implies the AuthRequest was not authenticated, hence we error out from here.
@@ -155,6 +153,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
         return null;
       }
     }
+
     String targetLocation =
             backendAddress
                     + request.getRequestURI()
@@ -292,6 +291,10 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     String backendUrl = Strings.isNullOrEmpty(queryDetail.getBackendUrl())
             ? requestIdBackendMap.get(requestId)
             : queryDetail.getBackendUrl();
+    if (backendUrl == null) {
+      log.warn("request id not found in "
+              + Arrays.toString(requestIdBackendMap.keySet().toArray()));
+    }
     log.debug("Extracting Proxy destination : [{}] for request : [{}]",
             backendUrl, request.getRequestURI());
 
