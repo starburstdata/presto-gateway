@@ -74,6 +74,11 @@ public abstract class RoutingManager {
     uiManager.submitUiBackend(uiCookie, backend);
   }
 
+  public boolean deleteUiCookie(String uiCookie) {
+    uiCookieBackendCache.invalidate(uiCookie);
+    return uiManager.removeUiCookie(uiCookie);
+  }
+
   /**
    * Performs routing to an adhoc backend.
    *

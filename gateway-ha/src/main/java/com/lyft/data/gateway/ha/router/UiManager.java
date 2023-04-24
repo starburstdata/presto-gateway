@@ -36,4 +36,14 @@ public class UiManager {
       connectionManager.close();
     }
   }
+
+  public boolean removeUiCookie(String uiCookie) {
+    try {
+      connectionManager.open();
+      UiRequestBackend uiRequestBackend = UiRequestBackend.findById(uiCookie);
+      return uiRequestBackend.delete();
+    } finally {
+      connectionManager.close();
+    }
+  }
 }

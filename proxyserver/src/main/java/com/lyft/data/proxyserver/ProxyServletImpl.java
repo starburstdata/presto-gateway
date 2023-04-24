@@ -83,17 +83,20 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
           HttpServletRequest clientRequest,
           HttpServletResponse proxyResponse,
           Response serverResponse) {
-    if (clientRequest.getRequestURI().equals("/ui/api/insights/logout")) {
-      Optional<Cookie> requestJsessionCookie =
-          Arrays.stream(clientRequest.getCookies()).filter(
-              cookie -> cookie.getName().equalsIgnoreCase("JSESSIONID")).findAny();
-      if (requestJsessionCookie.isPresent()) {
-        requestJsessionCookie.get().setMaxAge(0);
-        requestJsessionCookie.get().setValue("delete");
-        requestJsessionCookie.get().setPath("/"); //this seems to always be the jsessionid path
-        proxyResponse.addCookie(requestJsessionCookie.get());
-      }
+    Optional<Cookie> requestJsessionCookie =
+            Arrays.stream(clientRequest.getCookies()).filter(
+                cookie -> cookie.getName().equalsIgnoreCase("JSESSIONID")).findAny();
+    if (requestJsessionCookie.isPresent()
+            && (clientRequest.getRequestURI().equals("/ui/api/insights/logout")
+        || (this.proxyHandler != null
+            && !this.proxyHandler.isKnownSessionId(
+                    requestJsessionCookie.get().getValue().split("\\.")[0])))) {
+      requestJsessionCookie.get().setMaxAge(0);
+      requestJsessionCookie.get().setValue("delete");
+      requestJsessionCookie.get().setPath("/"); //this seems to always be the jsessionid path
+      proxyResponse.addCookie(requestJsessionCookie.get());
     }
+    //TODO: see if the session id cookie can be deleted once login is complete
     super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
   }
 

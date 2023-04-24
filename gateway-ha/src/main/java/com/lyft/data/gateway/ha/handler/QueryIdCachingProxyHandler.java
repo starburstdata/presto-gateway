@@ -118,6 +118,16 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
   }
 
   @Override
+  public boolean isKnownSessionId(String sessionId) {
+    return !Strings.isNullOrEmpty(sessionBackendMap.get(sessionId));
+    //return sessionBackendMap.containsKey(sessionId);
+  }
+
+  public boolean deleteUiCookie(String sessionId) {
+    return routingManager.deleteUiCookie(sessionId);
+  }
+
+  @Override
   public String rewriteTarget(HttpServletRequest request, int requestId) {
     log.debug("Enter rewriteTarget");
     /* Here comes the load balancer / gateway */
@@ -133,15 +143,17 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
         requestIdBackendMap.put(requestId, backendAddress);
       } else if (!Strings.isNullOrEmpty(request.getRequestedSessionId())) {
         //pin browser sessions to the same backend based on jsessionid, but load balance queries
-        backendAddress = sessionBackendMap.get(request.getRequestedSessionId().split("\\.")[0]);
+        //backendAddress = sessionBackendMap.get(request.getRequestedSessionId().split("\\.")[0]);
+        backendAddress = routingManager.findBackendForUiCookie(
+                request.getRequestedSessionId().split("\\.")[0]);
         if (Strings.isNullOrEmpty(backendAddress)) {
           log.error("Unknown jessionid: " + request.getRequestedSessionId());
-          //TODO: reset jsessionid cookie if this happens
           backendAddress = getBackendForRequest(request);
         }
       } else {
         backendAddress = getBackendForRequest(request);
-        sessionBackendMap.put(request.getSession().getId(), backendAddress);
+        routingManager.setBackendForUiCookie(request.getSession().getId(), backendAddress);
+        //sessionBackendMap.put(request.getSession().getId(), backendAddress);
         log.debug("using session id " + request.getSession().getId());
       }
     }
@@ -286,8 +298,6 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     log.debug("Request Id: " + requestId);
 
     QueryHistoryManager.QueryDetail queryDetail = getQueryDetailsFromRequest(request);
-    //TODO: use the requestId or something else that changes per query,
-    // since this will only use one backend
     String backendUrl = Strings.isNullOrEmpty(queryDetail.getBackendUrl())
             ? requestIdBackendMap.get(requestId)
             : queryDetail.getBackendUrl();

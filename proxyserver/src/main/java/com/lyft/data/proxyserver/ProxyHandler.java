@@ -151,4 +151,8 @@ public class ProxyHandler {
     return (compressed[0] == (byte) (GZIPInputStream.GZIP_MAGIC))
         && (compressed[1] == (byte) (GZIPInputStream.GZIP_MAGIC >> 8));
   }
+
+  public boolean isKnownSessionId(String sessionId) {
+    return false;
+  }
 }
