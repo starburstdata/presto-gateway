@@ -83,6 +83,12 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
           HttpServletRequest clientRequest,
           HttpServletResponse proxyResponse,
           Response serverResponse) {
+    // Clean up session cookie. The session cookie is used to pin the client to a backend during
+    // the oauth handshake. If an old cookie is reused for a new handshake it causes a failure.
+    if (clientRequest.getCookies() == null) {
+      super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
+      return;
+    }
     Optional<Cookie> requestJsessionCookie =
             Arrays.stream(clientRequest.getCookies()).filter(
                 cookie -> cookie.getName().equalsIgnoreCase("JSESSIONID")).findAny();
