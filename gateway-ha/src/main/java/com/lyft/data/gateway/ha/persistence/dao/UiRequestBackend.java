@@ -18,6 +18,6 @@ public class UiRequestBackend extends Model {
       String backend) {
     model.set(UiRequestBackend.uiCookie, uiCookie);
     model.set(UiRequestBackend.backend, backend);
+    model.insert();
   }
-
 }

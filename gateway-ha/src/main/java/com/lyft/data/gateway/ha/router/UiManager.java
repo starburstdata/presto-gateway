@@ -16,7 +16,6 @@ public class UiManager {
   public void submitUiBackend(String uiCookie, String backend) {
     try {
       connectionManager.open();
-
       UiRequestBackend dao = new UiRequestBackend();
       log.info(String.format("Writing cookie %s for backend %s", uiCookie, backend));
       UiRequestBackend.create(dao, uiCookie, backend);
