@@ -81,3 +81,8 @@ CREATE TABLE IF NOT EXISTS ui_request (
     ui_cookie VARCHAR(256) NOT NULL PRIMARY KEY,
     backend VARCHAR(256)
 )
+
+CREATE TABLE IF NOT EXISTS queryid (
+    queryid VARCHAR(256) NOT NULL PRIMARY KEY,
+    backend VARCHAR(256)
+)
