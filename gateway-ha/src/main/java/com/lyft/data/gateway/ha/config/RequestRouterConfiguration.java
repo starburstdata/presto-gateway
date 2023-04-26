@@ -19,4 +19,8 @@ public class RequestRouterConfiguration {
 
   // Use the certificate between gateway and presto?
   private boolean forwardKeystore;
+
+  // attempt to lookup unknown query Ids if true, otherwise rely
+  // on recording them in the DB
+  private boolean lookupQueryIds = true;
 }

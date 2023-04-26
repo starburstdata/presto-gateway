@@ -27,6 +27,12 @@ public class ProxyHandler {
     return null;
   }
 
+  protected String rewriteTarget(HttpServletRequest request, int requestId) {
+    // Dont override this unless absolutely needed.
+    return null;
+  }
+
+
   /**
    * Request interceptor.
    *
@@ -54,6 +60,22 @@ public class ProxyHandler {
       int offset,
       int length,
       Callback callback) {
+    try {
+      response.getOutputStream().write(buffer, offset, length);
+      callback.succeeded();
+    } catch (Throwable var9) {
+      callback.failed(var9);
+    }
+  }
+
+  protected void postConnectionHook(
+          HttpServletRequest request,
+          HttpServletResponse response,
+          byte[] buffer,
+          int offset,
+          int length,
+          Callback callback,
+          int requestId) {
     try {
       response.getOutputStream().write(buffer, offset, length);
       callback.succeeded();
@@ -128,5 +150,9 @@ public class ProxyHandler {
   protected boolean isCompressed(final byte[] compressed) {
     return (compressed[0] == (byte) (GZIPInputStream.GZIP_MAGIC))
         && (compressed[1] == (byte) (GZIPInputStream.GZIP_MAGIC >> 8));
+  }
+
+  public boolean isKnownSessionId(String sessionId) {
+    return false;
   }
 }
