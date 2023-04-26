@@ -220,8 +220,8 @@ public abstract class RoutingManager {
     } finally {
       // Return random backend if not found
       log.warn(String.format("No backend found for UI Cookie %s!!", uiCookie));
-      return provideAdhocBackend("");
     }
+    return provideAdhocBackend("");
   }
 
   protected String lookupBackendForQueryId(String queryId) {
@@ -233,7 +233,7 @@ public abstract class RoutingManager {
     } finally {
       // Return random backend if not found
       log.warn(String.format("No backend found for Query Id %s!!", queryId));
-      return provideAdhocBackend("");
     }
+    return provideAdhocBackend("");
   }
 }
