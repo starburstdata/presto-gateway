@@ -9,6 +9,7 @@ import com.lyft.data.gateway.ha.config.RequestRouterConfiguration;
 import com.lyft.data.gateway.ha.config.RoutingRulesConfiguration;
 import com.lyft.data.gateway.ha.handler.QueryIdCachingProxyHandler;
 import com.lyft.data.gateway.ha.persistence.JdbcConnectionManager;
+import com.lyft.data.gateway.ha.router.CacheManager;
 import com.lyft.data.gateway.ha.router.GatewayBackendManager;
 import com.lyft.data.gateway.ha.router.HaGatewayManager;
 import com.lyft.data.gateway.ha.router.HaQueryHistoryManager;
@@ -18,7 +19,6 @@ import com.lyft.data.gateway.ha.router.QueryHistoryManager;
 import com.lyft.data.gateway.ha.router.ResourceGroupsManager;
 import com.lyft.data.gateway.ha.router.RoutingGroupSelector;
 import com.lyft.data.gateway.ha.router.RoutingManager;
-import com.lyft.data.gateway.ha.router.UiManager;
 import com.lyft.data.proxyserver.ProxyHandler;
 import com.lyft.data.proxyserver.ProxyServer;
 import com.lyft.data.proxyserver.ProxyServerConfiguration;
@@ -31,7 +31,7 @@ public class HaGatewayProviderModule extends AppModule<HaGatewayConfiguration, E
   private final QueryHistoryManager queryHistoryManager;
   private final RoutingManager routingManager;
   private final JdbcConnectionManager connectionManager;
-  private final UiManager uiManager;
+  private final CacheManager cacheManager;
 
   public HaGatewayProviderModule(HaGatewayConfiguration configuration, Environment environment) {
     super(configuration, environment);
@@ -39,9 +39,12 @@ public class HaGatewayProviderModule extends AppModule<HaGatewayConfiguration, E
     resourceGroupsManager = new HaResourceGroupsManager(connectionManager);
     gatewayBackendManager = new HaGatewayManager(connectionManager);
     queryHistoryManager = new HaQueryHistoryManager(connectionManager);
-    uiManager = new UiManager(connectionManager);
+    cacheManager = new CacheManager(connectionManager);
     routingManager =
-        new HaRoutingManager(gatewayBackendManager, queryHistoryManager, uiManager);
+        new HaRoutingManager(gatewayBackendManager,
+                queryHistoryManager,
+                cacheManager,
+                configuration.getRequestRouter().isLookupQueryIds());
   }
 
   protected ProxyHandler getProxyHandler() {

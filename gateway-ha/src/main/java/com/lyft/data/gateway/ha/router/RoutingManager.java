@@ -29,26 +29,44 @@ import lombok.extern.slf4j.Slf4j;
 public abstract class RoutingManager {
   private static final Random RANDOM = new Random();
   private final LoadingCache<String, String> queryIdBackendCache;
+  private final boolean lookupQueries;
   private final LoadingCache<String, String> uiCookieBackendCache;
   private ExecutorService executorService = Executors.newFixedThreadPool(5);
   private GatewayBackendManager gatewayBackendManager;
-  UiManager uiManager;
+  CacheManager cacheManager;
 
-
-  public RoutingManager(GatewayBackendManager gatewayBackendManager, UiManager uiManager) {
+  public RoutingManager(
+          GatewayBackendManager gatewayBackendManager,
+          CacheManager cacheManager,
+          boolean lookupQueries) {
     this.gatewayBackendManager = gatewayBackendManager;
-    this.uiManager = uiManager;
-    queryIdBackendCache =
-        CacheBuilder.newBuilder()
-            .maximumSize(10000)
-            .expireAfterAccess(30, TimeUnit.MINUTES)
-            .build(
-                new CacheLoader<String, String>() {
-                  @Override
-                  public String load(String queryId) {
-                    return findBackendForUnknownQueryId(queryId);
-                  }
-                });
+    this.cacheManager = cacheManager;
+    this.lookupQueries = lookupQueries;
+    if (lookupQueries) {
+      queryIdBackendCache =
+              CacheBuilder.newBuilder()
+                      .maximumSize(10000)
+                      .expireAfterAccess(30, TimeUnit.MINUTES)
+                      .build(
+                              new CacheLoader<String, String>() {
+                              @Override
+                              public String load(String queryId) {
+                                return findBackendForUnknownQueryId(queryId);
+                              }
+                        });
+    } else {
+      queryIdBackendCache =
+              CacheBuilder.newBuilder()
+                      .maximumSize(10000)
+                      .expireAfterAccess(30, TimeUnit.MINUTES)
+                      .build(
+                              new CacheLoader<String, String>() {
+                              @Override
+                              public String load(String queryId) {
+                                return lookupBackendForQueryId(queryId);
+                              }
+                        });
+    }
     uiCookieBackendCache =
         CacheBuilder.newBuilder()
             .maximumSize(10000)
@@ -57,7 +75,7 @@ public abstract class RoutingManager {
                 new CacheLoader<String, String>() {
                 @Override
                   public String load(String queryId) {
-                    return findBackendForUnknownUiCookie(queryId);
+                    return lookupBackendForUiCookie(queryId);
                   }
                 });
   }
@@ -67,16 +85,25 @@ public abstract class RoutingManager {
   }
 
   public void setBackendForQueryId(String queryId, String backend) {
-    queryIdBackendCache.put(queryId, backend);
+    if (lookupQueries) {
+      queryIdBackendCache.put(queryId, backend);
+    } else {
+      cacheManager.submitQueryIdBackend(queryId, backend);
+    }
   }
 
   public void setBackendForUiCookie(String uiCookie, String backend) {
-    uiManager.submitUiBackend(uiCookie, backend);
+    cacheManager.submitUiBackend(uiCookie, backend);
   }
 
   public boolean deleteUiCookie(String uiCookie) {
     uiCookieBackendCache.invalidate(uiCookie);
-    return uiManager.removeUiCookie(uiCookie);
+    return cacheManager.removeUiCookie(uiCookie);
+  }
+
+  public boolean deleteQueryId(String queryId) {
+    queryIdBackendCache.invalidate(queryId);
+    return cacheManager.removeQueryId(queryId);
   }
 
   /**
@@ -184,15 +211,28 @@ public abstract class RoutingManager {
     return gatewayBackendManager.getActiveAdhocBackends().get(0).getProxyTo();
   }
 
-  protected String findBackendForUnknownUiCookie(String uiCookie) {
+  protected String lookupBackendForUiCookie(String uiCookie) {
     try {
-      String backend = uiManager.getBackendForUiCookie(uiCookie);
+      String backend = cacheManager.getBackendForUiCookie(uiCookie);
       if (!Strings.isNullOrEmpty(backend)) {
         return backend;
       }
     } finally {
       // Return random backend if not found
       log.warn(String.format("No backend found for UI Cookie %s!!", uiCookie));
+      return provideAdhocBackend("");
+    }
+  }
+
+  protected String lookupBackendForQueryId(String queryId) {
+    try {
+      String backend = cacheManager.getBackendForQueryId(queryId);
+      if (!Strings.isNullOrEmpty(backend)) {
+        return backend;
+      }
+    } finally {
+      // Return random backend if not found
+      log.warn(String.format("No backend found for Query Id %s!!", queryId));
       return provideAdhocBackend("");
     }
   }
