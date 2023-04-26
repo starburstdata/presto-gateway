@@ -22,5 +22,5 @@ public class RequestRouterConfiguration {
 
   // attempt to lookup unknown query Ids if true, otherwise rely
   // on recording them in the DB
-  private boolean lookupQueryIds;
+  private boolean lookupQueryIds = true;
 }
