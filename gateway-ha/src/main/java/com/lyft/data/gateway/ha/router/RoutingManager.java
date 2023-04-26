@@ -212,28 +212,22 @@ public abstract class RoutingManager {
   }
 
   protected String lookupBackendForUiCookie(String uiCookie) {
-    try {
-      String backend = cacheManager.getBackendForUiCookie(uiCookie);
-      if (!Strings.isNullOrEmpty(backend)) {
-        return backend;
-      }
-    } finally {
-      // Return random backend if not found
-      log.warn(String.format("No backend found for UI Cookie %s!!", uiCookie));
+    String backend = cacheManager.getBackendForUiCookie(uiCookie);
+    if (!Strings.isNullOrEmpty(backend)) {
+      return backend;
     }
+    // Return random backend if not found
+    log.warn(String.format("No backend found for UI Cookie %s!!", uiCookie));
     return provideAdhocBackend("");
   }
 
   protected String lookupBackendForQueryId(String queryId) {
-    try {
-      String backend = cacheManager.getBackendForQueryId(queryId);
-      if (!Strings.isNullOrEmpty(backend)) {
-        return backend;
-      }
-    } finally {
-      // Return random backend if not found
-      log.warn(String.format("No backend found for Query Id %s!!", queryId));
+    String backend = cacheManager.getBackendForQueryId(queryId);
+    if (!Strings.isNullOrEmpty(backend)) {
+      return backend;
     }
+    // Return random backend if not found
+    log.warn(String.format("No backend found for Query Id %s!!", queryId));
     return provideAdhocBackend("");
   }
 }

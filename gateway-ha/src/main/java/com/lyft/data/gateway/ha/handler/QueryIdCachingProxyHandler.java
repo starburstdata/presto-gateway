@@ -61,7 +61,6 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
   private final Meter requestMeter;
   private final int serverApplicationPort;
 
-  private final Map<String, String> sessionBackendMap = new HashMap<>();
   private final Map<Integer, String> requestIdBackendMap = new HashMap<>();
 
   public QueryIdCachingProxyHandler(
@@ -119,8 +118,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
 
   @Override
   public boolean isKnownSessionId(String sessionId) {
-    return !Strings.isNullOrEmpty(sessionBackendMap.get(sessionId));
-    //return sessionBackendMap.containsKey(sessionId);
+    return !Strings.isNullOrEmpty(routingManager.findBackendForUiCookie(sessionId));
   }
 
   public boolean deleteUiCookie(String sessionId) {
@@ -143,7 +141,6 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
         requestIdBackendMap.put(requestId, backendAddress);
       } else if (!Strings.isNullOrEmpty(request.getRequestedSessionId())) {
         //pin browser sessions to the same backend based on jsessionid, but load balance queries
-        //backendAddress = sessionBackendMap.get(request.getRequestedSessionId().split("\\.")[0]);
         backendAddress = routingManager.findBackendForUiCookie(
                 request.getRequestedSessionId().split("\\.")[0]);
         if (Strings.isNullOrEmpty(backendAddress)) {
@@ -153,7 +150,6 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       } else {
         backendAddress = getBackendForRequest(request);
         routingManager.setBackendForUiCookie(request.getSession().getId(), backendAddress);
-        //sessionBackendMap.put(request.getSession().getId(), backendAddress);
         log.debug("using session id " + request.getSession().getId());
       }
     }

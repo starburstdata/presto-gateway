@@ -89,6 +89,7 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
       super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
       return;
     }
+    log.debug("Enter onServerResponseHeaders");
     Optional<Cookie> requestJsessionCookie =
             Arrays.stream(clientRequest.getCookies()).filter(
                 cookie -> cookie.getName().equalsIgnoreCase("JSESSIONID")).findAny();
