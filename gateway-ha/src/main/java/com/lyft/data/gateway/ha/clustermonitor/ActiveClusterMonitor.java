@@ -43,6 +43,8 @@ public class ActiveClusterMonitor implements Managed {
   private final int taskDelayMin;
 
   private volatile boolean monitorActive = true;
+  private final String jwt;
+  private final boolean isUseJwt;
 
   private ExecutorService executorService = Executors.newFixedThreadPool(DEFAULT_THREAD_POOL_SIZE);
   private ExecutorService singleTaskExecutor = Executors.newSingleThreadExecutor();
@@ -56,6 +58,16 @@ public class ActiveClusterMonitor implements Managed {
     this.gatewayBackendManager = gatewayBackendManager;
     this.connectionTimeout = monitorConfiguration.getConnectionTimeout();
     this.taskDelayMin = monitorConfiguration.getTaskDelayMin();
+    if (monitorConfiguration.isUseJwtAuth()) {
+      if (Strings.isNullOrEmpty(monitorConfiguration.getJwt())) {
+        throw new RuntimeException("No valid JWT provided for health check");
+      }
+      this.jwt = monitorConfiguration.getJwt();
+      this.isUseJwt = true;
+    } else {
+      this.isUseJwt = false;
+      this.jwt = "";
+    }
     log.info("Running cluster monitor with connection timeout of {} and task delay of {}",
         connectionTimeout, taskDelayMin);
   }
@@ -108,6 +120,9 @@ public class ActiveClusterMonitor implements Managed {
       conn.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(connectionTimeout));
       conn.setReadTimeout((int) TimeUnit.SECONDS.toMillis(connectionTimeout));
       conn.setRequestMethod(HttpMethod.GET);
+      if (isUseJwt) {
+        conn.setRequestProperty("Authorization", "Bearer " + jwt);
+      }
       conn.connect();
       int responseCode = conn.getResponseCode();
       if (responseCode == HttpStatus.SC_OK) {
