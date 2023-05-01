@@ -11,15 +11,22 @@ import com.lyft.data.gateway.ha.config.MonitorConfiguration;
 import com.lyft.data.gateway.ha.config.ProxyBackendConfiguration;
 import com.lyft.data.gateway.ha.router.GatewayBackendManager;
 import io.dropwizard.lifecycle.Managed;
+import io.trino.jdbc.TrinoDriver;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -43,9 +50,15 @@ public class ActiveClusterMonitor implements Managed {
   private final int taskDelayMin;
 
   private volatile boolean monitorActive = true;
+  private final String jwt;
+  private final boolean isUseJwt;
+  private int jdbcPort;
+  private boolean jdbcUseSsl;
 
   private ExecutorService executorService = Executors.newFixedThreadPool(DEFAULT_THREAD_POOL_SIZE);
   private ExecutorService singleTaskExecutor = Executors.newSingleThreadExecutor();
+
+  TrinoDriver driver;
 
   @Inject
   public ActiveClusterMonitor(
@@ -56,6 +69,20 @@ public class ActiveClusterMonitor implements Managed {
     this.gatewayBackendManager = gatewayBackendManager;
     this.connectionTimeout = monitorConfiguration.getConnectionTimeout();
     this.taskDelayMin = monitorConfiguration.getTaskDelayMin();
+    if (monitorConfiguration.isUseJwtAuth()) {
+      if (Strings.isNullOrEmpty(monitorConfiguration.getJwt())) {
+        throw new RuntimeException("No valid JWT provided for health check");
+      }
+      this.jwt = monitorConfiguration.getJwt();
+      this.isUseJwt = true;
+    } else {
+      this.isUseJwt = false;
+      this.jwt = "";
+    }
+    this.jdbcPort = monitorConfiguration.getJdbcPort();
+    this.jdbcUseSsl = monitorConfiguration.isJdbcUseSsl();
+    driver = new TrinoDriver();
+
     log.info("Running cluster monitor with connection timeout of {} and task delay of {}",
         connectionTimeout, taskDelayMin);
   }
@@ -134,6 +161,62 @@ public class ActiveClusterMonitor implements Managed {
   }
 
   private ClusterStats getPrestoClusterStats(ProxyBackendConfiguration backend) {
+    if (isUseJwt) {
+      return getPrestoClusterStatsSql(backend);
+    }
+    return getPrestoClusterStatsUi(backend);
+  }
+
+  private ClusterStats getPrestoClusterStatsSql(ProxyBackendConfiguration backend) {
+    ClusterStats clusterStats = new ClusterStats();
+    clusterStats.setClusterId(backend.getName());
+    String jdbcUrl;
+    try {
+      jdbcUrl = String.format("jdbc:trino://%s:%s/system/runtime",
+              (new URL(backend.getProxyTo())).getHost(), jdbcPort);
+    } catch (MalformedURLException e) {
+      log.debug("Cannot construct URL from " + backend.getProxyTo());
+      clusterStats.setHealthy(false);
+      return clusterStats;
+    }
+    Properties connectionProperties = new Properties();
+    if (isUseJwt) {
+      connectionProperties.setProperty("accessToken", jwt);
+    }
+    connectionProperties.setProperty("SSL", Boolean.toString(jdbcUseSsl));
+
+    try (Connection conn = driver.connect(jdbcUrl, connectionProperties)) {
+      Statement statement = conn.createStatement();
+      String queryStatsSql = "select\n"
+              + "  count_if(upper(state) = 'RUNNING') as runningQueries,\n"
+              + "  count_if(upper(state) = 'QUEUED') as queuedQueries,\n"
+              + "  count_if(upper(state) = 'BLOCKED') as blockedQueries\n"
+              + "from system.runtime.queries";
+      ResultSet queryStatsResult = statement.executeQuery(queryStatsSql);
+      queryStatsResult.next();
+      clusterStats.setQueuedQueryCount(queryStatsResult.getInt("queuedQueries"));
+      clusterStats.setRunningQueryCount(queryStatsResult.getInt("runningQueries"));
+      clusterStats.setBlockedQueryCount(queryStatsResult.getInt("blockedQueries"));
+
+      String nodeStatsSql = "select\n"
+              + "count_if( not coordinator AND upper(state) = 'ACTIVE') as activeWorkers\n"
+              + "from system.runtime.nodes";
+      ResultSet nodeStatsResult = statement.executeQuery(nodeStatsSql);
+      nodeStatsResult.next();
+      clusterStats.setNumWorkerNodes(nodeStatsResult.getInt("activeWorkers"));
+      clusterStats.setProxyTo(backend.getProxyTo());
+      clusterStats.setExternalUrl(backend.getExternalUrl());
+      clusterStats.setRoutingGroup(backend.getRoutingGroup());
+      clusterStats.setHealthy(true);
+      return clusterStats;
+    } catch (SQLException e) {
+      log.error("Error querying cluster stats: " + e);
+    }
+    clusterStats.setHealthy(false);
+    return clusterStats;
+  }
+
+  private ClusterStats getPrestoClusterStatsUi(ProxyBackendConfiguration backend) {
     ClusterStats clusterStats = new ClusterStats();
     clusterStats.setClusterId(backend.getName());
 
