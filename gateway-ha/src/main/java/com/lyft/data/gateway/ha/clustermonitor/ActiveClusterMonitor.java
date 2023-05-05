@@ -16,6 +16,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -170,7 +171,15 @@ public class ActiveClusterMonitor implements Managed {
     ClusterStats clusterStats = new ClusterStats();
     clusterStats.setClusterId(backend.getName());
     String jdbcUrl =
-            String.format("jdbc:trino://%s:%s/system/runtime", backend.getProxyTo(), jdbcPort);
+            null;
+    try {
+      jdbcUrl = String.format("jdbc:trino://%s:%s/system/runtime",
+              (new URL(backend.getProxyTo())).getHost(), jdbcPort);
+    } catch (MalformedURLException e) {
+      log.debug("Cannot construct URL from " + backend.getProxyTo());
+      clusterStats.setHealthy(false);
+      return clusterStats;
+    }
     Properties connectionProperties = new Properties();
     if (isUseJwt) {
       connectionProperties.setProperty("Authorization", "Bearer " + jwt);
