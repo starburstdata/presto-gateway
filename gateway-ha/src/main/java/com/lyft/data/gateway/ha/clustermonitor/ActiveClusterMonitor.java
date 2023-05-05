@@ -182,7 +182,7 @@ public class ActiveClusterMonitor implements Managed {
     }
     Properties connectionProperties = new Properties();
     if (isUseJwt) {
-      connectionProperties.setProperty("Authorization", "Bearer " + jwt);
+      connectionProperties.setProperty("accessToken", jwt);
     }
     connectionProperties.setProperty("SSL", Boolean.toString(jdbcUseSsl));
 
