@@ -11,15 +11,21 @@ import com.lyft.data.gateway.ha.config.MonitorConfiguration;
 import com.lyft.data.gateway.ha.config.ProxyBackendConfiguration;
 import com.lyft.data.gateway.ha.router.GatewayBackendManager;
 import io.dropwizard.lifecycle.Managed;
+import io.trino.jdbc.TrinoDriver;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -49,6 +55,8 @@ public class ActiveClusterMonitor implements Managed {
   private ExecutorService executorService = Executors.newFixedThreadPool(DEFAULT_THREAD_POOL_SIZE);
   private ExecutorService singleTaskExecutor = Executors.newSingleThreadExecutor();
 
+  TrinoDriver driver;
+
   @Inject
   public ActiveClusterMonitor(
       List<PrestoClusterStatsObserver> clusterStatsObservers,
@@ -68,6 +76,8 @@ public class ActiveClusterMonitor implements Managed {
       this.isUseJwt = false;
       this.jwt = "";
     }
+    driver = new TrinoDriver();
+
     log.info("Running cluster monitor with connection timeout of {} and task delay of {}",
         connectionTimeout, taskDelayMin);
   }
@@ -120,9 +130,6 @@ public class ActiveClusterMonitor implements Managed {
       conn.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(connectionTimeout));
       conn.setReadTimeout((int) TimeUnit.SECONDS.toMillis(connectionTimeout));
       conn.setRequestMethod(HttpMethod.GET);
-      if (isUseJwt) {
-        conn.setRequestProperty("Authorization", "Bearer " + jwt);
-      }
       conn.connect();
       int responseCode = conn.getResponseCode();
       if (responseCode == HttpStatus.SC_OK) {
@@ -149,6 +156,50 @@ public class ActiveClusterMonitor implements Managed {
   }
 
   private ClusterStats getPrestoClusterStats(ProxyBackendConfiguration backend) {
+    if (isUseJwt) {
+      return getPrestoClusterStatsSql(backend);
+    }
+    return getPrestoClusterStatsUi(backend);
+  }
+
+  private ClusterStats getPrestoClusterStatsSql(ProxyBackendConfiguration backend) {
+    ClusterStats clusterStats = new ClusterStats();
+    clusterStats.setClusterId(backend.getName());
+    String jdbcUrl = String.format("jdbc:trino://%s/system/runtime", backend.getProxyTo());
+    Properties connectionProperties = new Properties();
+    if (isUseJwt) {
+      connectionProperties.setProperty("Authorization", "Bearer " + jwt);
+    }
+
+    try (Connection conn = driver.connect(jdbcUrl, connectionProperties)) {
+      Statement statement = conn.createStatement();
+      String queryStatsSql = "select\n"
+              + "  count_if(upper(state) = 'RUNNING') as runningQueries,\n"
+              + "  count_if(upper(state) = 'QUEUED') as queuedQueries,\n"
+              + "  count_if(upper(state) = 'BLOCKED') as blockedQueries\n"
+              + "from system.runtime.queries";
+      ResultSet queryStatsResult = statement.executeQuery(queryStatsSql);
+      clusterStats.setQueuedQueryCount(queryStatsResult.getInt("queuedQueries"));
+      clusterStats.setRunningQueryCount(queryStatsResult.getInt("runningQueries"));
+      clusterStats.setBlockedQueryCount(queryStatsResult.getInt("blockedQueries"));
+
+      String nodeStatsSql = "select\n"
+              + "count_if( not coordinator AND upper(state) = 'ACTIVE') as activeWorkers\n"
+              + "from system.runtime.nodes";
+      ResultSet nodeStatsResult = statement.executeQuery(nodeStatsSql);
+      clusterStats.setNumWorkerNodes(nodeStatsResult.getInt("activeWorkers"));
+      clusterStats.setProxyTo(backend.getProxyTo());
+      clusterStats.setExternalUrl(backend.getExternalUrl());
+      clusterStats.setRoutingGroup(backend.getRoutingGroup());
+      clusterStats.setHealthy(true);
+    } catch (SQLException e) {
+      log.error("Error querying cluster stats: " + e);
+    }
+    clusterStats.setHealthy(false);
+    return clusterStats;
+  }
+
+  private ClusterStats getPrestoClusterStatsUi(ProxyBackendConfiguration backend) {
     ClusterStats clusterStats = new ClusterStats();
     clusterStats.setClusterId(backend.getName());
 
@@ -174,6 +225,7 @@ public class ActiveClusterMonitor implements Managed {
 
     } catch (Exception e) {
       log.error("Error parsing cluster stats from [{}]", response, e);
+      e.printStackTrace();
     }
 
     // Fetch User Level Stats.
