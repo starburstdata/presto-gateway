@@ -170,8 +170,7 @@ public class ActiveClusterMonitor implements Managed {
   private ClusterStats getPrestoClusterStatsSql(ProxyBackendConfiguration backend) {
     ClusterStats clusterStats = new ClusterStats();
     clusterStats.setClusterId(backend.getName());
-    String jdbcUrl =
-            null;
+    String jdbcUrl;
     try {
       jdbcUrl = String.format("jdbc:trino://%s:%s/system/runtime",
               (new URL(backend.getProxyTo())).getHost(), jdbcPort);
@@ -194,6 +193,7 @@ public class ActiveClusterMonitor implements Managed {
               + "  count_if(upper(state) = 'BLOCKED') as blockedQueries\n"
               + "from system.runtime.queries";
       ResultSet queryStatsResult = statement.executeQuery(queryStatsSql);
+      queryStatsResult.next();
       clusterStats.setQueuedQueryCount(queryStatsResult.getInt("queuedQueries"));
       clusterStats.setRunningQueryCount(queryStatsResult.getInt("runningQueries"));
       clusterStats.setBlockedQueryCount(queryStatsResult.getInt("blockedQueries"));
@@ -202,6 +202,7 @@ public class ActiveClusterMonitor implements Managed {
               + "count_if( not coordinator AND upper(state) = 'ACTIVE') as activeWorkers\n"
               + "from system.runtime.nodes";
       ResultSet nodeStatsResult = statement.executeQuery(nodeStatsSql);
+      nodeStatsResult.next();
       clusterStats.setNumWorkerNodes(nodeStatsResult.getInt("activeWorkers"));
       clusterStats.setProxyTo(backend.getProxyTo());
       clusterStats.setExternalUrl(backend.getExternalUrl());
