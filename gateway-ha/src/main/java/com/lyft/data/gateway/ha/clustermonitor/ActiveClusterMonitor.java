@@ -51,6 +51,8 @@ public class ActiveClusterMonitor implements Managed {
   private volatile boolean monitorActive = true;
   private final String jwt;
   private final boolean isUseJwt;
+  private int jdbcPort;
+  private boolean jdbcUseSsl;
 
   private ExecutorService executorService = Executors.newFixedThreadPool(DEFAULT_THREAD_POOL_SIZE);
   private ExecutorService singleTaskExecutor = Executors.newSingleThreadExecutor();
@@ -76,6 +78,8 @@ public class ActiveClusterMonitor implements Managed {
       this.isUseJwt = false;
       this.jwt = "";
     }
+    this.jdbcPort = monitorConfiguration.getJdbcPort();
+    this.jdbcUseSsl = monitorConfiguration.isJdbcUseSsl();
     driver = new TrinoDriver();
 
     log.info("Running cluster monitor with connection timeout of {} and task delay of {}",
@@ -165,11 +169,13 @@ public class ActiveClusterMonitor implements Managed {
   private ClusterStats getPrestoClusterStatsSql(ProxyBackendConfiguration backend) {
     ClusterStats clusterStats = new ClusterStats();
     clusterStats.setClusterId(backend.getName());
-    String jdbcUrl = String.format("jdbc:trino://%s/system/runtime", backend.getProxyTo());
+    String jdbcUrl =
+            String.format("jdbc:trino://%s:%s/system/runtime", backend.getProxyTo(), jdbcPort);
     Properties connectionProperties = new Properties();
     if (isUseJwt) {
       connectionProperties.setProperty("Authorization", "Bearer " + jwt);
     }
+    connectionProperties.setProperty("SSL", Boolean.toString(jdbcUseSsl));
 
     try (Connection conn = driver.connect(jdbcUrl, connectionProperties)) {
       Statement statement = conn.createStatement();

@@ -9,4 +9,6 @@ public class MonitorConfiguration {
   private int taskDelayMin = ActiveClusterMonitor.MONITOR_TASK_DELAY_MIN;
   private String jwt;
   private boolean useJwtAuth = false;
+  private int jdbcPort = 443;
+  private boolean jdbcUseSsl;
 }
