@@ -167,6 +167,11 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       }
     }
 
+    if (Strings.isNullOrEmpty(backendAddress)) {
+      log.debug("No backend assigned for " + request);
+      return null;
+    }
+
     String targetLocation =
             backendAddress
                     + request.getRequestURI()
