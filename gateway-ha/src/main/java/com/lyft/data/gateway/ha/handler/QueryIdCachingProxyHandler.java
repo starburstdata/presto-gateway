@@ -55,18 +55,21 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
 
   private final Meter requestMeter;
   private final int serverApplicationPort;
+  private final boolean rerouteRequestsToApplication;
 
   public QueryIdCachingProxyHandler(
       QueryHistoryManager queryHistoryManager,
       RoutingManager routingManager,
       RoutingGroupSelector routingGroupSelector,
       int serverApplicationPort,
-      Meter requestMeter) {
+      Meter requestMeter,
+      boolean rerouteRequestsToApplication) {
     this.requestMeter = requestMeter;
     this.routingManager = routingManager;
     this.routingGroupSelector = routingGroupSelector;
     this.queryHistoryManager = queryHistoryManager;
     this.serverApplicationPort = serverApplicationPort;
+    this.rerouteRequestsToApplication = rerouteRequestsToApplication;
   }
 
   @Override
@@ -111,7 +114,8 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
   @Override
   public String rewriteTarget(HttpServletRequest request) {
     /* Here comes the load balancer / gateway */
-    String backendAddress = "http://localhost:" + serverApplicationPort;
+    String backendAddress =
+            rerouteRequestsToApplication ? "http://localhost:" + serverApplicationPort : null;
 
     // Only load balance presto query APIs.
     if (isPathWhiteListed(request.getRequestURI())) {
