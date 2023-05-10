@@ -67,7 +67,8 @@ public class HaGatewayProviderModule extends AppModule<HaGatewayConfiguration, E
         getRoutingManager(),
         routingGroupSelector,
         getApplicationPort(),
-        requestMeter);
+        requestMeter,
+        getConfiguration().getRequestRouter().isRerouteRequestsToApplication());
   }
 
   @Provides

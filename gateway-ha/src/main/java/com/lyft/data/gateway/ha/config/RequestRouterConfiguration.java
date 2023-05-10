@@ -23,4 +23,8 @@ public class RequestRouterConfiguration {
   // attempt to lookup unknown query Ids if true, otherwise rely
   // on recording them in the DB
   private boolean lookupQueryIds = true;
+
+  // By default non-whitelisted requests are rerouted to the application port.
+  // Set this to false to if separate networking rules are required  
+  private boolean rerouteRequestsToApplication = true;
 }
