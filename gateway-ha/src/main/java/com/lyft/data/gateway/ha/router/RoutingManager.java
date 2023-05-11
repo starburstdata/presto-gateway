@@ -1,5 +1,6 @@
 package com.lyft.data.gateway.ha.router;
 
+import com.google.common.base.Strings;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -28,20 +29,53 @@ import lombok.extern.slf4j.Slf4j;
 public abstract class RoutingManager {
   private static final Random RANDOM = new Random();
   private final LoadingCache<String, String> queryIdBackendCache;
+  private final boolean lookupQueries;
+  private final LoadingCache<String, String> uiCookieBackendCache;
   private ExecutorService executorService = Executors.newFixedThreadPool(5);
   private GatewayBackendManager gatewayBackendManager;
+  CacheManager cacheManager;
 
-  public RoutingManager(GatewayBackendManager gatewayBackendManager) {
+  public RoutingManager(
+          GatewayBackendManager gatewayBackendManager,
+          CacheManager cacheManager,
+          boolean lookupQueries) {
     this.gatewayBackendManager = gatewayBackendManager;
-    queryIdBackendCache =
+    this.cacheManager = cacheManager;
+    this.lookupQueries = lookupQueries;
+    if (lookupQueries) {
+      queryIdBackendCache =
+              CacheBuilder.newBuilder()
+                      .maximumSize(10000)
+                      .expireAfterAccess(30, TimeUnit.MINUTES)
+                      .build(
+                              new CacheLoader<String, String>() {
+                              @Override
+                              public String load(String queryId) {
+                                return findBackendForUnknownQueryId(queryId);
+                              }
+                        });
+    } else {
+      queryIdBackendCache =
+              CacheBuilder.newBuilder()
+                      .maximumSize(10000)
+                      .expireAfterAccess(30, TimeUnit.MINUTES)
+                      .build(
+                              new CacheLoader<String, String>() {
+                              @Override
+                              public String load(String queryId) {
+                                return lookupBackendForQueryId(queryId);
+                              }
+                        });
+    }
+    uiCookieBackendCache =
         CacheBuilder.newBuilder()
             .maximumSize(10000)
             .expireAfterAccess(30, TimeUnit.MINUTES)
             .build(
                 new CacheLoader<String, String>() {
-                  @Override
+                @Override
                   public String load(String queryId) {
-                    return findBackendForUnknownQueryId(queryId);
+                    return lookupBackendForUiCookie(queryId);
                   }
                 });
   }
@@ -51,7 +85,25 @@ public abstract class RoutingManager {
   }
 
   public void setBackendForQueryId(String queryId, String backend) {
-    queryIdBackendCache.put(queryId, backend);
+    if (lookupQueries) {
+      queryIdBackendCache.put(queryId, backend);
+    } else {
+      cacheManager.submitQueryIdBackend(queryId, backend);
+    }
+  }
+
+  public void setBackendForUiCookie(String uiCookie, String backend) {
+    cacheManager.submitUiBackend(uiCookie, backend);
+  }
+
+  public boolean deleteUiCookie(String uiCookie) {
+    uiCookieBackendCache.invalidate(uiCookie);
+    return cacheManager.removeUiCookie(uiCookie);
+  }
+
+  public boolean deleteQueryId(String queryId) {
+    queryIdBackendCache.invalidate(queryId);
+    return cacheManager.removeQueryId(queryId);
   }
 
   /**
@@ -103,6 +155,16 @@ public abstract class RoutingManager {
     return backendAddress;
   }
 
+  public String findBackendForUiCookie(String uiCookie) {
+    try {
+      return uiCookieBackendCache.get(uiCookie);
+    } catch (ExecutionException e) {
+      log.error("Exception while loading UI Cookie backend from cache {}", e.getLocalizedMessage());
+    }
+    //TODO: consider using optionals for all of the places where nulls or defaults are returned
+    return null;
+  }
+
   /**
    * This tries to find out which backend may have info about given query id. If not found returns
    * the first healthy backend.
@@ -111,11 +173,13 @@ public abstract class RoutingManager {
    * @return
    */
   protected String findBackendForUnknownQueryId(String queryId) {
+
     List<ProxyBackendConfiguration> backends = gatewayBackendManager.getAllBackends();
 
     Map<String, Future<Integer>> responseCodes = new HashMap<>();
     try {
       for (ProxyServerConfiguration backend : backends) {
+        //TODO: this won't work with authentication. Reuse the auth headers from the request.
         String target = backend.getProxyTo() + "/v1/query/" + queryId;
 
         Future<Integer> call =
@@ -145,5 +209,25 @@ public abstract class RoutingManager {
     }
     // Fallback on first active backend if queryId mapping not found.
     return gatewayBackendManager.getActiveAdhocBackends().get(0).getProxyTo();
+  }
+
+  protected String lookupBackendForUiCookie(String uiCookie) {
+    String backend = cacheManager.getBackendForUiCookie(uiCookie);
+    if (!Strings.isNullOrEmpty(backend)) {
+      return backend;
+    }
+    // Return random backend if not found
+    log.warn(String.format("No backend found for UI Cookie %s!!", uiCookie));
+    return provideAdhocBackend("");
+  }
+
+  protected String lookupBackendForQueryId(String queryId) {
+    String backend = cacheManager.getBackendForQueryId(queryId);
+    if (!Strings.isNullOrEmpty(backend)) {
+      return backend;
+    }
+    // Return random backend if not found
+    log.warn(String.format("No backend found for Query Id %s!!", queryId));
+    return provideAdhocBackend("");
   }
 }

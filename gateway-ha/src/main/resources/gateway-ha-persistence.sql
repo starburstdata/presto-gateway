@@ -76,3 +76,13 @@ CREATE TABLE IF NOT EXISTS exact_match_source_selectors (
     PRIMARY KEY (environment, source, query_type),
     UNIQUE (source, environment, query_type, resource_group_id)
 );
+
+CREATE TABLE IF NOT EXISTS ui_request (
+    ui_cookie VARCHAR(256) NOT NULL PRIMARY KEY,
+    backend VARCHAR(256)
+);
+
+CREATE TABLE IF NOT EXISTS queryid (
+    queryid VARCHAR(256) NOT NULL PRIMARY KEY,
+    backend VARCHAR(256)
+)
