@@ -35,6 +35,7 @@ public class CacheManager {
       QueryIdBackend.create(dao, queryId, backend);
     } catch (Exception e) {
       log.warn(String.format("Error saving queryId %s for backend %s: %s", queryId, backend, e));
+      e.printStackTrace();;
     } finally {
       connectionManager.close();
     }
