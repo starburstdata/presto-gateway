@@ -39,8 +39,8 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
   public static final String UI_API_STATS_PATH = "/ui/api/stats";
   public static final String UI_API_QUEUED_LIST_PATH = "/ui/api/query?state=QUEUED";
   public static final String PRESTO_UI_PATH = "/ui";
-  public static final String OAUTH2_PATH = "/oauth2";
   public static final String INSIGHTS_STATEMENT_PATH = "/ui/api/insights/ide/statement";
+  public static final String OAUTH2_PATH = "/oauth2";
   public static final String USER_HEADER = "X-Trino-User";
   public static final String ALTERNATE_USER_HEADER = "X-Presto-User";
   public static final String SOURCE_HEADER = "X-Trino-Source";
