@@ -9,6 +9,7 @@ import com.lyft.data.gateway.ha.config.RequestRouterConfiguration;
 import com.lyft.data.gateway.ha.config.RoutingRulesConfiguration;
 import com.lyft.data.gateway.ha.handler.QueryIdCachingProxyHandler;
 import com.lyft.data.gateway.ha.persistence.JdbcConnectionManager;
+import com.lyft.data.gateway.ha.router.CacheManager;
 import com.lyft.data.gateway.ha.router.GatewayBackendManager;
 import com.lyft.data.gateway.ha.router.HaGatewayManager;
 import com.lyft.data.gateway.ha.router.HaQueryHistoryManager;
@@ -30,6 +31,7 @@ public class HaGatewayProviderModule extends AppModule<HaGatewayConfiguration, E
   private final QueryHistoryManager queryHistoryManager;
   private final RoutingManager routingManager;
   private final JdbcConnectionManager connectionManager;
+  private final CacheManager cacheManager;
 
   public HaGatewayProviderModule(HaGatewayConfiguration configuration, Environment environment) {
     super(configuration, environment);
@@ -37,8 +39,12 @@ public class HaGatewayProviderModule extends AppModule<HaGatewayConfiguration, E
     resourceGroupsManager = new HaResourceGroupsManager(connectionManager);
     gatewayBackendManager = new HaGatewayManager(connectionManager);
     queryHistoryManager = new HaQueryHistoryManager(connectionManager);
+    cacheManager = new CacheManager(connectionManager);
     routingManager =
-        new HaRoutingManager(gatewayBackendManager, (HaQueryHistoryManager) queryHistoryManager);
+        new HaRoutingManager(gatewayBackendManager,
+                queryHistoryManager,
+                cacheManager,
+                configuration.getRequestRouter().isLookupQueryIds());
   }
 
   protected ProxyHandler getProxyHandler() {

@@ -34,6 +34,8 @@ public class TestGatewayHaSingleBackend {
     // Now populate the backend
     HaGatewayTestUtils.setUpBackend(
         "presto1", "http://localhost:" + backendPort, "externalUrl", true, "adhoc", routerPort);
+    System.out.println(String.format("Backend setup with routerPort %s and backendPort %s",
+            routerPort, backendPort));
   }
 
   @Test
@@ -46,7 +48,7 @@ public class TestGatewayHaSingleBackend {
             .post(requestBody)
             .build();
     Response response = httpClient.newCall(request).execute();
-    Assert.assertEquals(EXPECTED_RESPONSE, response.body().string());
+    Assert.assertEquals(response.body().string(), EXPECTED_RESPONSE);
   }
 
   @AfterClass(alwaysRun = true)

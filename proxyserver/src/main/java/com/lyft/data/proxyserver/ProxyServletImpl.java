@@ -1,7 +1,12 @@
 package com.lyft.data.proxyserver;
 
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -10,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.client.api.Response;
+import org.eclipse.jetty.http.HttpFields;
 import org.eclipse.jetty.proxy.ProxyServlet;
 import org.eclipse.jetty.util.Callback;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
@@ -18,6 +24,7 @@ import org.eclipse.jetty.util.ssl.SslContextFactory;
 public class ProxyServletImpl extends ProxyServlet.Transparent {
   private ProxyHandler proxyHandler;
   private ProxyServerConfiguration serverConfig;
+  private final Map<String, String> trinoNonceBackendMap = new HashMap<>();
 
   public void setProxyHandler(ProxyHandler proxyHandler) {
     this.proxyHandler = proxyHandler;
@@ -62,13 +69,42 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
   protected String rewriteTarget(HttpServletRequest request) {
     String target = null;
     if (proxyHandler != null) {
-      target = proxyHandler.rewriteTarget(request);
+      target = proxyHandler.rewriteTarget(request, this.getRequestId(request));
     }
     if (target == null) {
       target = super.rewriteTarget(request);
     }
     log.debug("Target : " + target);
     return target;
+  }
+
+  @Override
+  protected void onServerResponseHeaders(
+          HttpServletRequest clientRequest,
+          HttpServletResponse proxyResponse,
+          Response serverResponse) {
+    // Clean up session cookie. The session cookie is used to pin the client to a backend during
+    // the oauth handshake. If an old cookie is reused for a new handshake it causes a failure.
+    if (clientRequest.getCookies() == null) {
+      super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
+      return;
+    }
+    log.debug("Enter onServerResponseHeaders");
+    Optional<Cookie> requestJsessionCookie =
+            Arrays.stream(clientRequest.getCookies()).filter(
+                cookie -> cookie.getName().equalsIgnoreCase("JSESSIONID")).findAny();
+    if (requestJsessionCookie.isPresent()
+            && (clientRequest.getRequestURI().equals("/ui/api/insights/logout")
+        || (this.proxyHandler != null
+            && !this.proxyHandler.isKnownSessionId(
+                    requestJsessionCookie.get().getValue().split("\\.")[0])))) {
+      requestJsessionCookie.get().setMaxAge(0);
+      requestJsessionCookie.get().setValue("delete");
+      requestJsessionCookie.get().setPath("/"); //this seems to always be the jsessionid path
+      proxyResponse.addCookie(requestJsessionCookie.get());
+    }
+    //TODO: see if the session id cookie can be deleted once login is complete
+    super.onServerResponseHeaders(clientRequest, proxyResponse, serverResponse);
   }
 
   /**
@@ -96,7 +132,8 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
             "[{}] proxying content to downstream: [{}] bytes", this.getRequestId(request), length);
       }
       if (this.proxyHandler != null) {
-        proxyHandler.postConnectionHook(request, response, buffer, offset, length, callback);
+        proxyHandler.postConnectionHook(
+                request, response, buffer, offset, length, callback, this.getRequestId(request));
       } else {
         super.onResponseContent(request, response, proxyResponse, buffer, offset, length, callback);
       }
