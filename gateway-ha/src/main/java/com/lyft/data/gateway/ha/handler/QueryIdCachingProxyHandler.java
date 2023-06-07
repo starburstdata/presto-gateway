@@ -105,7 +105,9 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
         || path.startsWith(OAUTH2_PATH)
         || path.startsWith(V1_INFO_PATH)
         || path.startsWith(UI_API_STATS_PATH)
-        || path.startsWith(OAUTH2_PATH);
+        || path.startsWith(OAUTH2_PATH)
+        || path.equals("/")
+        || path.isEmpty(); // allow backends to redirect a bare hostname to /ui
   }
 
   public boolean isAuthEnabled() {
