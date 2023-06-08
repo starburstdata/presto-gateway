@@ -56,6 +56,15 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
     return httpClient;
   }
 
+
+  @Override
+  protected void onProxyRewriteFailed(
+          HttpServletRequest clientRequest,
+          HttpServletResponse proxyResponse) {
+    // Will be called if rewriteTarget returns null
+    super.sendProxyResponseError(clientRequest, proxyResponse, 404);
+  }
+
   /** Customize the headers of forwarding proxy requests. */
   @Override
   protected void addProxyHeaders(HttpServletRequest request, Request proxyRequest) {
@@ -70,8 +79,7 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
     String target = null;
     if (proxyHandler != null) {
       target = proxyHandler.rewriteTarget(request, this.getRequestId(request));
-    }
-    if (target == null) {
+    } else {
       target = super.rewriteTarget(request);
     }
     log.debug("Target : " + target);

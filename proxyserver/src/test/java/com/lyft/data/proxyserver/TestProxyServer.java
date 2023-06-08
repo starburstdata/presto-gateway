@@ -30,7 +30,9 @@ public class TestProxyServer {
 
     int serverPort = backendPort + 1;
     ProxyServerConfiguration config = buildConfig(backend.getUrl("/").toString(), serverPort);
-    ProxyServer proxyServer = new ProxyServer(config, new ProxyHandler());
+    ProxyServer proxyServer = new ProxyServer(config, null);
+    // Passing a null proxyHandler will cause ProxyServletImpl to defer to
+    // super.rewriteTarget, which is the desired behavior since ProxyHandler just returns a null.
 
     try {
       proxyServer.start();
@@ -55,12 +57,12 @@ public class TestProxyServer {
 
     int serverPort = backendPort + 1;
     ProxyServerConfiguration config = buildConfig(backend.getUrl("/").toString(), serverPort);
-    ProxyServer proxyServer = new ProxyServer(config, new ProxyHandler());
+    ProxyServer proxyServer = new ProxyServer(config, null);
 
     try {
       proxyServer.start();
       CloseableHttpClient httpclient = HttpClientBuilder.create().build();
-      HttpUriRequest httpUriRequest = new HttpGet("http://localhost:" + serverPort);
+      HttpUriRequest httpUriRequest = new HttpGet("http://localhost:" + serverPort + "/v1/statement");
       httpUriRequest.setHeader("HEADER1", "FOO");
       httpUriRequest.setHeader("HEADER2", "BAR");
 
