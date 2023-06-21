@@ -155,7 +155,6 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
       } else {
         backendAddress = getBackendForRequest(request);
         routingManager.setBackendForUiCookie(request.getSession().getId(), backendAddress);
-        log.debug("using session id " + request.getSession().getId());
       }
     }
 
@@ -168,7 +167,6 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     }
     
     if (Strings.isNullOrEmpty(backendAddress)) {
-      log.debug("No backend assigned for " + request);
       return null;
     }
     String targetLocation =
