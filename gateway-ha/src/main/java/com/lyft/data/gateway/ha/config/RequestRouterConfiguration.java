@@ -20,6 +20,9 @@ public class RequestRouterConfiguration {
   // Use the certificate between gateway and presto?
   private boolean forwardKeystore;
 
+  // By default non-whitelisted requests are rerouted to the application port.
+  // Set this to false to if separate networking rules are required  
+  private boolean rerouteRequestsToApplication = true;
   // attempt to lookup unknown query Ids if true, otherwise rely
   // on recording them in the DB
   private boolean lookupQueryIds = true;
